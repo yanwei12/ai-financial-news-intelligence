@@ -1,0 +1,26 @@
+{
+  "sample_id": "syn-03-contradiction",
+  "group_id": "syn-03",
+  "annotator": "example",
+  "is_synthetic": true,
+  "article": {
+    "title": "星河公司今年將關閉工廠",
+    "document_id": "1f894c1798adcdbcbdbe1174fbd9113091f9308c66eea17461f13d79e5255ba1",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "text": "星河公司執行長今天表示，公司今年不會關閉任何工廠，並將維持現有的生產規模。\n\n外界先前傳出公司可能整併產能，執行長說明目前沒有相關計畫。\n\n公司預計明年重新評估產能配置。"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "星河公司今年將關閉工廠",
+      "relation": "conflicts",
+      "gap_type": "contradiction",
+      "evidence_ids": [
+        "P001",
+        "P002"
+      ],
+      "note": "同一對象（星河公司）、同一期間（今年），正文明確說不會關閉。"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "sample_id": "r-8fc0cdee",
+  "group_id": "g-acer-fed",
+  "annotator": "claude-draft",
+  "is_synthetic": false,
+  "article": {
+    "title": "宏碁董座揭升息內幕：AI巨頭大開槓桿引爆通膨 逼聯準會出手",
+    "document_id": "9f29b6d4c4c3bf9d4255038e87ad0524181a65c8ffb2447ccbcba842a5804189",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "url": "https://tw.news.yahoo.com/%E5%AE%8F%E7%A2%81%E8%91%A3%E5%BA%A7%E6%8F%AD%E5%8D%87%E6%81%AF%E5%85%A7%E5%B9%95-ai%E5%B7%A8%E9%A0%AD%E5%A4%A7%E9%96%8B%E6%A7%93%E6%A1%BF%E5%BC%95%E7%88%86%E9%80%9A%E8%86%A8-%E9%80%BC%E8%81%AF%E6%BA%96%E6%9C%83%E5%87%BA%E6%89%8B-074400083.html",
+    "content_hash": "8fc0cdeee95234dbd0b5240e797d52b01221cc634244f8e9fc3262c2867f978f"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "宏碁董座揭露：AI巨頭大開槓桿引爆通膨，逼聯準會升息",
+      "relation": "supports",
+      "gap_type": "certainty",
+      "evidence_ids": [
+        "P001",
+        "P002"
+      ],
+      "note": "[信心:中] 內文核心事實相同，但全是陳俊聖個人的看法，用語是「認為」「應是希望」「這次升息是被AI…所引發」，並非聯準會說明或已證實。標題用「揭內幕」「引爆」「逼」，把個人推測寫成已知事實。"
+    }
+  ]
+}

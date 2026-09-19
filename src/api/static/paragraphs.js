@@ -11,6 +11,7 @@ let prepared = null;
 let revision = 0;
 let analysis = null;
 let analyzing = false;
+let savedArticleId = null;  // set only while the text is exactly a confirmed article; any edit clears it
 const analyzeButton = document.getElementById("analyze-button");
 const analysisResult = document.getElementById("analysis-result");
 
@@ -18,6 +19,7 @@ function invalidate() {
   revision += 1;
   prepared = null;
   analysis = null;
+  savedArticleId = null;
   analysisResult.hidden = true;
   result.hidden = true;
   error.hidden = true;
@@ -167,13 +169,15 @@ function showAnalysis(data) {
 
 analyzeButton.addEventListener("click", async () => {
   if (!prepared || analyzing) return;
-  if (prepared.original_text.length > 20000 || prepared.paragraphs.length > 400) {
-    error.textContent = "第一版分析最多 20,000 字元、400 段；正文不會被截斷。";
+  // Same unit as the server and /check: characters other than whitespace.
+  if (prepared.original_text.replace(/\s/g, "").length > 20000 || prepared.paragraphs.length > 400) {
+    error.textContent = "第一版分析最多 20,000 字（不含空白）、400 段；正文不會被截斷。";
     error.hidden = false;
     return;
   }
   const currentRevision = revision;
   const snapshot = prepared;
+  const articleId = savedArticleId;
   analyzing = true;
   analyzeButton.disabled = true;
   error.hidden = true;
@@ -183,7 +187,7 @@ analyzeButton.addEventListener("click", async () => {
   try {
     const response = await fetch("/headline/analyze", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({title: snapshot.title, content: snapshot.original_text, paragraph_mode: snapshot.paragraph_mode, document_id: snapshot.document_id}),
+      body: JSON.stringify({title: snapshot.title, content: snapshot.original_text, paragraph_mode: snapshot.paragraph_mode, document_id: snapshot.document_id, article_id: articleId}),
       signal: controller.signal,
     });
     const data = await response.json();
@@ -219,6 +223,7 @@ async function loadSavedArticle() {
     contentInput.value = article.body;
     modeInput.value = "blank_lines";
     form.requestSubmit();
+    savedArticleId = article.id;  // after submit: requestSubmit does not fire the "input" event that clears it
   } catch (failure) {
     if (currentRevision !== revision) return;
     error.textContent = failure.message;

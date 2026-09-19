@@ -455,6 +455,36 @@ def fetch_article(
     return result
 
 
+def fetch_document(
+    url: str,
+    *,
+    html_only: bool = False,
+    session: Any | None = None,
+    resolver: Resolver | None = None,
+    robots_cache: RobotsCache | None = None,
+) -> tuple[str, bytes]:
+    """
+    Fetch one allowlisted URL (an RSS feed or a page) under the same safety
+    rules as fetch_article. Returns (final_url, content); raises FetchError.
+    """
+    own_session = session is None
+    session = session or requests.Session()
+    try:
+        page = _request(
+            (url or "").strip(),
+            session=session,
+            resolver=resolver or _default_resolver,
+            robots_cache=_robots_cache if robots_cache is None else robots_cache,
+            deadline=time.monotonic() + TOTAL_TIMEOUT,
+            check_robots=True,
+            html_only=html_only,
+        )
+        return page.final_url, page.content
+    finally:
+        if own_session:
+            session.close()
+
+
 def _fail(
     result: FetchResult,
     reason: FailureReason,

@@ -1,0 +1,24 @@
+{
+  "sample_id": "syn-04-supported",
+  "group_id": "syn-04",
+  "annotator": "example",
+  "is_synthetic": true,
+  "article": {
+    "title": "星河公司宣布新產品",
+    "document_id": "7bd07b9736dc9d88e2f54088e27715c0f2e649aa2907a98cea3b713c86cb9d0c",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "text": "星河公司今天宣布推出新一代伺服器產品，預計下季開始供貨。\n\n公司表示新產品採用自行設計的晶片，效能較上一代提升。\n\n詳細規格與定價將在發表會公布。"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "星河公司宣布推出新產品",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P001"
+      ]
+    }
+  ]
+}

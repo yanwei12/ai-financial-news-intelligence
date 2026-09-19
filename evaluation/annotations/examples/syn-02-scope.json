@@ -1,0 +1,26 @@
+{
+  "sample_id": "syn-02-scope",
+  "group_id": "syn-02",
+  "annotator": "example",
+  "is_synthetic": true,
+  "article": {
+    "title": "星河公司全面漲價",
+    "document_id": "951902df41c9035eb95fc9aaaf3f9073e81c5193ff9fd8debddf5666f4c0b874",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "text": "星河公司宣布將調漲售價，調整只適用於北美地區的部分產品線。\n\n亞洲與歐洲市場的價格維持不變，公司未提供其他地區的調整計畫。\n\n新價格預計下個月起生效。"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "星河公司所有產品在所有市場全面漲價",
+      "relation": "supports",
+      "gap_type": "scope",
+      "evidence_ids": [
+        "P001",
+        "P002"
+      ],
+      "note": "標題寫「全面」，正文限定北美部分產品線，其他市場不變。"
+    }
+  ]
+}

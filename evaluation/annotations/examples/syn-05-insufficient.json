@@ -1,0 +1,23 @@
+{
+  "sample_id": "syn-05-insufficient",
+  "group_id": "syn-05",
+  "annotator": "example",
+  "is_synthetic": true,
+  "article": {
+    "title": "星河公司即將裁員",
+    "document_id": "0fbd12054115f6c2b631b0696398f89086bb7aaab9e40b25486d7fc9a2724417",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "text": "星河公司成立於2010年，主要業務為伺服器與網通設備。\n\n公司目前在北美與亞洲設有研發中心，員工人數約三千人。\n\n今年第二季營收與上一季相比持平。"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "星河公司即將裁員",
+      "relation": "insufficient",
+      "gap_type": "insufficient",
+      "evidence_ids": [],
+      "note": "正文完全沒談到裁員；沒提到不等於矛盾。"
+    }
+  ]
+}

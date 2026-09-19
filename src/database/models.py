@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, String, Text, Float
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -157,3 +157,19 @@ class Article(Base):
 
     def __repr__(self) -> str:
         return f"<Article id={self.id} title={self.title!r} origin={self.input_origin}>"
+
+
+class ArticleAnalysisLink(Base):
+    """
+    Which saved article an analysis belongs to. Kept in its own table so the
+    existing `headline_analyses` table does not need a migration. One article
+    can have several analyses (other model or prompt version).
+    """
+
+    __tablename__ = "article_analyses"
+
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id"), primary_key=True)
+    cache_key: Mapped[str] = mapped_column(
+        String(64), ForeignKey("headline_analyses.cache_key"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)

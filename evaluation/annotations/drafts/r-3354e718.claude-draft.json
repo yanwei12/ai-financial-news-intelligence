@@ -1,0 +1,52 @@
+{
+  "sample_id": "r-3354e718",
+  "group_id": "g-tsmc-gift-tax",
+  "annotator": "claude-draft",
+  "is_synthetic": false,
+  "article": {
+    "title": "台積電1張246萬「送小孩就踩稅線」！超額恐課10％ 律師教3招節稅、防賣股棄養",
+    "document_id": "f7b698fc6b2028b3c6915f936f0497793bafa211f54f8f8d38df9229b3477a26",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "url": "https://tw.stock.yahoo.com/news/%E5%8F%B0%E7%A9%8D%E9%9B%BB1%E5%BC%B5246%E8%90%AC-%E9%80%81%E5%B0%8F%E5%AD%A9%E5%B0%B1%E8%B8%A9%E7%A8%85%E7%B7%9A-%E8%B6%85%E9%A1%8D%E6%81%90%E8%AA%B210-%E5%BE%8B%E5%B8%AB%E6%95%993%E6%8B%9B%E7%AF%80%E7%A8%85-%E9%98%B2%E8%B3%A3%E8%82%A1%E6%A3%84%E9%A4%8A-031500889.html",
+    "content_hash": "3354e718fb9acb74a1802e37202c9895cd2a2169e07d91a0300e2e992c593ca4"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "台積電1張市值246萬元，超過每人每年244萬元的贈與免稅額",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P002",
+        "P003"
+      ],
+      "note": "[信心:高] P002、P003都給出246萬與244萬的比較。"
+    },
+    {
+      "claim_id": "C2",
+      "text": "超過免稅額的部分恐被課10%贈與稅",
+      "relation": "insufficient",
+      "gap_type": "insufficient",
+      "evidence_ids": [
+        "P002",
+        "P003"
+      ],
+      "note": "[信心:高] 內文只說超出部分「就可能面臨贈與稅」，全文沒有出現10%或任何稅率。依規則不能用內文以外的知識（例如現行稅率）補上，所以標資訊不足。"
+    },
+    {
+      "claim_id": "C3",
+      "text": "律師教了3招節稅並防止子女賣股棄養",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P004",
+        "P005",
+        "P006",
+        "P008",
+        "P009"
+      ],
+      "note": "[信心:中] 內文列出至少三種方法：零股、拉長年度或父母分別贈與、賣出改贈現金（P004～P006）；防止賣股棄養的是「附負擔的贈與契約」（P008點出名稱，P009說明契約可載明的義務）與信託。標題說「教3招」，內文方法數量大於等於三，這個說法沒有被否定；內文沒有明寫「三招」，屬摘要式用語，不算落差，因此標 supports / none。（與C2不同：C2的10%是會改變理解的具體稅率，全文完全沒有。）"
+    }
+  ]
+}

@@ -2,6 +2,8 @@
 import json
 import os
 import re
+import time
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -12,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from src.processing.cleaner import PreparedArticle, resolve_evidence
 
-PROMPT_VERSION = "headline-paragraphs-v1"
+PROMPT_VERSION = "headline-paragraphs-v2"   # v2: explanations may only use numbers/names found in the article
 DEFAULT_MODEL = "gemini-3.8-flash"
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 Verdict = Literal["supported", "missing_conditions", "contradicted", "insufficient"]
@@ -56,6 +58,7 @@ contradicted=同一對象與期間有明確相反陳述；insufficient=沒有足
 gap_type：supported 必須為 none；missing_conditions 為 certainty 或 scope；contradicted 為 contradiction；insufficient 為 insufficient。
 evidence_ids 只能使用輸入段落的 ID。除了資訊不足可無引用，其餘判斷必須引用證據。標題不是正文證據。
 不要生成引用原文欄位；程式會自行取回原段落。summary 概括所有主張，不能超出證據。不得輸出誤導百分比。
+claim、explanation、summary 中的數字與英文名稱，必須逐字出現在標題或段落裡；不要換算、改寫或自行補充數字與名稱。
 """
 
 
@@ -106,6 +109,40 @@ def call_gemini(article: PreparedArticle, key: str, model: str) -> tuple[str, di
         raise AnalysisError("incomplete_output", "模型未回傳完整分析，可能遭到內容限制或輸出長度限制。") from None
 
 
+_NUMBER = re.compile(r"(?<![0-9.])\d+(?:\.\d+)?")
+# Latin names worth checking: three or more characters starting with a capital (TrendForce, CoWoS-L),
+# or any Latin token containing a digit (A14, N2P). Short acronyms such as AI are too common to police.
+_NAME = re.compile(r"(?<![A-Za-z0-9])(?:[A-Z][A-Za-z0-9-]{2,}|[A-Za-z]+\d[A-Za-z0-9-]*)(?![A-Za-z0-9])")
+_EVIDENCE_ID = re.compile(r"(?<![A-Za-z0-9])P\d{3,}(?![A-Za-z0-9])")
+
+
+def _normalize(text: str) -> str:
+    """Full-width to half-width, and 1,200 -> 1200, so the same number is always spelled the same."""
+    return re.sub(r"(?<=\d),(?=\d)", "", unicodedata.normalize("NFKC", text))
+
+
+def ungrounded_terms(texts: list[str], article: PreparedArticle) -> list[str]:
+    """
+    Numbers and Latin names in the model's own wording that never appear in the
+    title or body. A guard against the explanation smuggling in outside
+    information (plan M4). It cannot judge meaning: it will not catch a wrong
+    claim made only with words from the article, and it is strict about
+    rewritten numbers, which is why the prompt says to copy them verbatim.
+    """
+    source = _normalize("\n".join([article.title, *(p.text for p in article.paragraphs)]))
+    lowered = source.lower()
+    missing: list[str] = []
+    for text in texts:
+        cleaned = _EVIDENCE_ID.sub(" ", _normalize(text))
+        for token in _NUMBER.findall(cleaned):
+            if token not in source and token not in missing:
+                missing.append(token)
+        for token in _NAME.findall(cleaned):
+            if token.lower() not in lowered and token not in missing:
+                missing.append(token)
+    return missing
+
+
 def validate_result(raw: str, article: PreparedArticle) -> dict:
     try:
         parsed = ModelResult.model_validate_json(raw)
@@ -121,6 +158,12 @@ def validate_result(raw: str, article: PreparedArticle) -> dict:
             claims.append({**claim.model_dump(), "evidence": [{"id": p.id, "text": p.text} for p in evidence]})
     except (ValidationError, ValueError):
         raise AnalysisError("invalid_output", "模型回傳格式或引用驗證失敗，未產生可信的分析結果。") from None
+    unsupported = ungrounded_terms(
+        [parsed.summary] + [c.claim for c in parsed.claims] + [c.explanation for c in parsed.claims], article)
+    if unsupported:
+        raise AnalysisError(
+            "ungrounded_output",
+            "模型的說明含有文章裡沒有的數字或名稱（" + "、".join(unsupported[:5]) + "），未產生可信的分析結果。")
     verdicts = {c.verdict for c in parsed.claims}
     # Explicit conflicts take precedence; unsupported claims prevent an all-supported result.
     overall = next(v for v in ("contradicted", "missing_conditions", "insufficient", "supported") if v in verdicts)
@@ -128,8 +171,12 @@ def validate_result(raw: str, article: PreparedArticle) -> dict:
 
 
 def analyze(article: PreparedArticle, key: str, model: str) -> dict:
+    started = time.monotonic()
     raw, usage, actual_model = call_gemini(article, key, model)
-    return {**validate_result(raw, article), "document_id": article.document_id,
+    checked = validate_result(raw, article)
+    return {**checked, "document_id": article.document_id,
             "model": model, "model_version": actual_model, "prompt_version": PROMPT_VERSION,
             "analyzed_at": datetime.now(timezone.utc).isoformat(), "usage": usage,
+            # Wall time of the model call plus local validation, for the cost/latency record.
+            "latency_ms": round((time.monotonic() - started) * 1000),
             "prepared": article.to_dict()}

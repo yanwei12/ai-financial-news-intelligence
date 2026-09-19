@@ -1,0 +1,36 @@
+{
+  "sample_id": "syn-06-implied-cause",
+  "group_id": "syn-06",
+  "annotator": "example",
+  "is_synthetic": true,
+  "article": {
+    "title": "星河公司帶頭漲價15%！新材料掀AI封裝新賽道",
+    "document_id": "a9d53840172534b8bd0904f0a8934d84b13f0549a42b65e59d8ee475dfe5afe0",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "text": "星河公司宣布，自下季起調漲以日圓計價的面板用玻璃價格15%以上，主因是日圓走貶與原物料、能源成本上升。\n\n公司表示，成本壓力已超出內部消化的極限；同業預期將陸續跟進調價。\n\n另一方面，星河公司也在研發半導體封裝用的新材料，目前處於試產階段，尚未有量產時程，與面板用玻璃屬於不同市場。"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "星河公司宣布漲價15%",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P001"
+      ],
+      "note": "P001明確寫出調漲15%以上。"
+    },
+    {
+      "claim_id": "C2",
+      "text": "漲價與AI封裝熱潮有關",
+      "relation": "insufficient",
+      "gap_type": "insufficient",
+      "evidence_ids": [
+        "P001",
+        "P003"
+      ],
+      "note": "標題並列暗示因果。內文給的原因是日圓走貶與成本上升（P001），封裝材料是另一個市場（P003）；沒有任何一句支持AI帶動漲價，但也沒有明說無關，所以不標contradiction。"
+    }
+  ]
+}

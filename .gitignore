@@ -10,3 +10,5 @@ data/*.db
 
 .pytest_cache/
 .vscode/
+# Local copies of real article text used for annotation (not shareable)
+evaluation/cache/

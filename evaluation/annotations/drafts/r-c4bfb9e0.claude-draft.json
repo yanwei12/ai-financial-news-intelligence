@@ -1,0 +1,39 @@
+{
+  "sample_id": "r-c4bfb9e0",
+  "group_id": "g-tsmc-longtan",
+  "annotator": "claude-draft",
+  "is_synthetic": false,
+  "article": {
+    "title": "台積電布局埃米級晶片！傳獲准在「這裡」擴建 搶先英特爾",
+    "document_id": "c7e8e7093cbdc9dbfadbacee99e29da630d88319949863f083fb79786491dbe8",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "url": "https://tw.news.yahoo.com/%E5%8F%B0%E7%A9%8D%E9%9B%BB%E5%B8%83%E5%B1%80%E5%9F%83%E7%B1%B3%E7%B4%9A%E6%99%B6%E7%89%87-%E5%82%B3%E7%8D%B2%E5%87%86%E5%9C%A8-%E9%80%99%E8%A3%A1-%E6%93%B4%E5%BB%BA-%E6%90%B6%E5%85%88%E8%8B%B1%E7%89%B9%E7%88%BE-041914601.html",
+    "content_hash": "c4bfb9e0444d5aff7a8467e6b44d29477be287f529a33a237e8c1e9400d2ddd3"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "傳出台積電獲准在龍潭園區展開第3期擴建，布局埃米級製程",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P001",
+        "P007"
+      ],
+      "note": "[信心:高] 標題用「傳」，內文P001、P007同樣是「傳出」，語氣一致，沒有升高確定性。"
+    },
+    {
+      "claim_id": "C2",
+      "text": "台積電在先進製程上搶先英特爾",
+      "relation": "insufficient",
+      "gap_type": "insufficient",
+      "evidence_ids": [
+        "P001",
+        "P002",
+        "P004"
+      ],
+      "note": "[信心:中] 內文只說兩大廠競賽升溫：英特爾預計2028年推出14A（P001、P004），台積電埃米級目標2030年量產（P002），A14沒有給日期。沒有任何一句說台積電領先。時間點看起來甚至偏晚，但兩者不是同一製程節點，不算同一對象的明確相反，所以不標矛盾。注意：P002是一行小標題，證據力較弱；「2030年量產」的正文說法在P002標題與P001「布局埃米級製程」之間，沒有更完整的段落。"
+    }
+  ]
+}
