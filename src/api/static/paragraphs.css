@@ -28,3 +28,17 @@ summary { cursor: pointer; }
 #analysis-result article { border-top: 1px solid #d6ded7; padding: 16px 0; }
 #analysis-result button { margin: 4px; }
 @media (max-width: 600px) { form, section { padding: 16px; } }
+
+#analysis-result[data-verdict="supported"] { border-left: 5px solid #28624e; }
+#analysis-result[data-verdict="missing_conditions"] { border-left: 5px solid #a77921; }
+#analysis-result[data-verdict="contradicted"] { border-left: 5px solid #982b24; }
+#analysis-result[data-verdict="insufficient"] { border-left: 5px solid #52635c; }
+fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+fieldset:disabled { opacity: .7; }
+button[aria-pressed="true"] { background: #28624e; color: white; }
+details { margin-top: 20px; }
+details > summary { font-weight: 650; padding: 10px 0; }
+#analysis-result { scroll-margin-top: 20px; }
+#analysis-result h2 { font-size: 1.65rem; margin-top: 8px; }
+blockquote { border-left: 3px solid #a4b8aa; margin: 12px 0; padding: 8px 16px; white-space: pre-wrap; line-height: 1.8; }
+#advanced-result { background: white; border: 1px solid #d6ded7; border-radius: 12px; padding: 16px 24px; }

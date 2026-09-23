@@ -59,7 +59,8 @@ class APITests(unittest.TestCase):
     def test_page(self):
         r=self.client.get('/paragraphs')
         self.assertEqual(r.status_code,200)
-        self.assertIn('尚未執行 AI 判斷',r.text)
+        self.assertIn('id="settings"',r.text)
+        self.assertNotIn('產生段落預覽',r.text)
         self.assertIn('/static/paragraphs.js',r.text)
 
 if __name__ == '__main__': unittest.main()

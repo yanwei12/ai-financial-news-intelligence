@@ -1,5 +1,6 @@
 """Gemini headline consistency prototype; citations always come from source text."""
 import json
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -15,6 +16,8 @@ from src.processing.cleaner import PreparedArticle, resolve_evidence
 PROMPT_VERSION = "headline-paragraphs-v1"
 DEFAULT_MODEL = "gemini-3.8-flash"
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+logger = logging.getLogger(__name__)
+
 Verdict = Literal["supported", "missing_conditions", "contradicted", "insufficient"]
 
 
@@ -85,17 +88,27 @@ def call_gemini(article: PreparedArticle, key: str, model: str) -> tuple[str, di
     except requests.RequestException:
         raise AnalysisError("connection", "無法連線到 Gemini，請檢查網路。", 503) from None
     if response.status_code != 200:
+        # Log only status, never the provider body, submitted article or key.
+        logger.warning("Gemini request failed: HTTP %s", response.status_code)
+        if response.status_code == 402:
+            raise AnalysisError(
+                "billing_required",
+                "Google 未完成分析：API 帳務或可用額度不足（402）。請檢查這把 API key 所屬專案的付款設定、餘額與配額，處理後再試。此錯誤不代表標題不符合正文。",
+                402,
+            )
         messages = {
             400: "Gemini 拒絕請求，請檢查金鑰、模型和輸入設定。",
             401: "Gemini 金鑰驗證失敗。", 403: "Gemini 金鑰或模型存取權限不足。",
             404: "Gemini 模型不可用，請檢查 GEMINI_MODEL。",
             429: "Gemini 額度或速率限制已達上限，請稍後再試或檢查帳戶配額。",
         }
-        raise AnalysisError("provider_error", messages.get(response.status_code, "Gemini 暫時無法完成分析。"),
+        raise AnalysisError("provider_error", messages.get(response.status_code, f"Gemini 暫時無法完成分析（上游 HTTP {response.status_code}）。"),
                             429 if response.status_code == 429 else 502)
     try:
         data = response.json()
         candidate = data["candidates"][0]
+        if candidate.get("finishReason") == "MAX_TOKENS":
+            raise AnalysisError("output_truncated", "模型已耗用 token，但結果因輸出上限中斷，尚未得到完整判斷。請縮短文章或調整模型輸出／思考設定後再試。")
         if candidate.get("finishReason") != "STOP":
             raise ValueError("incomplete")
         text = "".join(p.get("text", "") for p in candidate["content"]["parts"] if not p.get("thought"))

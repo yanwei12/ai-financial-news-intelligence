@@ -1,229 +1,144 @@
 "use strict";
-const form = document.getElementById("prepare-form");
-const titleInput = document.getElementById("title");
-const contentInput = document.getElementById("content");
-const modeInput = document.getElementById("paragraph-mode");
-const result = document.getElementById("result");
-const status = document.getElementById("status");
-const error = document.getElementById("error");
-const submit = document.getElementById("prepare-button");
-let prepared = null;
+const $ = id => document.getElementById(id);
+let mode = location.pathname === "/check" ? "url" : "text";
+let busy = false;
 let revision = 0;
+let prepared = null;
 let analysis = null;
-let analyzing = false;
-const analyzeButton = document.getElementById("analyze-button");
-const analysisResult = document.getElementById("analysis-result");
+let fetched = null;
+const labels = { supported: "符合正文", missing_conditions: "部分符合，省略重要條件", contradicted: "不符合，與正文衝突", insufficient: "無法判定，正文證據不足" };
 
-function invalidate() {
+function clearResult() {
   revision += 1;
   prepared = null;
   analysis = null;
-  analysisResult.hidden = true;
-  result.hidden = true;
-  error.hidden = true;
-  status.textContent = "內容已變更，請重新產生段落預覽。";
+  $("analysis-result").hidden = true;
+  $("advanced-result").hidden = true;
+  $("advanced-result").open = false;
+  $("error").hidden = true;
+  $("status").textContent = "";
 }
-form.addEventListener("input", invalidate);
-modeInput.addEventListener("change", invalidate);
-document.getElementById("sample-button").addEventListener("click", () => {
-  titleInput.value = "【虛構範例】星河公司全面調漲價格";
-  contentInput.value = "星河公司表示，正在評估部分產品的售價調整。\n目前仍未作出最終決定。\n\n這項評估只涉及北美市場。方案中的調整幅度為 3.5%，其他市場不在此次評估範圍。";
-  modeInput.value = "blank_lines";
-  invalidate();
+function setMode(next) {
+  mode = next;
+  $("url-fields").hidden = next !== "url";
+  $("text-fields").hidden = next !== "text";
+  $("url-input").required = next === "url";
+  $("title").required = $("content").required = next === "text";
+  $("to-url").setAttribute("aria-pressed", String(next === "url"));
+  $("to-paste").setAttribute("aria-pressed", String(next === "text"));
+}
+function showError(message) {
+  $("error").textContent = message;
+  $("error").hidden = false;
+  $("error").focus();
+}
+$("analysis-form").addEventListener("input", () => { if (!busy) clearResult(); });
+for (const [id, next] of [["to-url", "url"], ["to-paste", "text"]]) {
+  $(id).addEventListener("click", () => { clearResult(); fetched = null; setMode(next); });
+}
+$("sample-button").addEventListener("click", () => {
+  clearResult(); fetched = null; setMode("text");
+  $("title").value = "【虛構範例】星河公司全面調漲價格";
+  $("content").value = "星河公司表示，正在評估部分產品的售價調整，目前仍未作出最終決定。\n\n這項評估只涉及北美市場，其他市場不在此次評估範圍。";
+  $("settings").open = false;
 });
-
-function render(data) {
-  const list = document.getElementById("paragraph-list");
-  const nav = document.getElementById("paragraph-nav");
-  list.replaceChildren();
-  nav.replaceChildren();
-  for (const paragraph of data.paragraphs) {
-    const article = document.createElement("article");
-    article.id = paragraph.id;
-    article.tabIndex = -1;
-    const heading = document.createElement("h3");
-    heading.textContent = paragraph.id;
-    const text = document.createElement("p");
-    text.textContent = paragraph.text;
-    article.append(heading, text);
-    list.append(article);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "secondary";
-    button.textContent = paragraph.id;
-    button.setAttribute("aria-pressed", "false");
-    button.addEventListener("click", () => {
-      for (const node of list.children) node.classList.remove("highlight");
-      for (const node of nav.children) node.setAttribute("aria-pressed", "false");
-      article.classList.add("highlight");
-      button.setAttribute("aria-pressed", "true");
-      article.focus({ preventScroll: true });
-      article.scrollIntoView({ block: "nearest" });
-    });
-    nav.append(button);
-  }
-  document.getElementById("original-text").textContent = data.original_text;
-  document.getElementById("paragraph-note").textContent = `共 ${data.paragraphs.length} 段。標題獨立保存，不包含在正文證據中。`;
-  result.hidden = false;
-}
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  analysis = null;
-  analysisResult.hidden = true;
-  const currentRevision = ++revision;
-  prepared = null;
-  result.hidden = true;
-  error.hidden = true;
-  submit.disabled = true;
-  status.textContent = "正在整理段落…";
+async function request(path, payload, timeout = 20000) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch("/articles/prepare", {
-      method: "POST",
+    const response = await fetch(path, {
+      method: payload === undefined ? "GET" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: titleInput.value, content: contentInput.value, paragraph_mode: modeInput.value }),
-      signal: controller.signal,
+      body: payload === undefined ? undefined : JSON.stringify(payload), signal: controller.signal,
     });
-    const data = await response.json();
-    if (currentRevision !== revision) return;
+    let data;
+    try { data = await response.json(); } catch (_) { throw new Error(`伺服器未回傳可讀取的結果（HTTP ${response.status}）。請稍後再試。`); }
     if (!response.ok) {
-      const message = typeof data.detail === "string" ? data.detail : "請確認標題及內文長度、內容與分段方式。";
-      throw new Error(message);
+      const detail = data.detail;
+      throw new Error(typeof detail === "string" ? detail : detail?.message || `請確認輸入內容後再試（HTTP ${response.status}）。`);
     }
-    prepared = data;
-    render(data);
-    status.textContent = "段落準備完成。尚未呼叫 AI 模型，資料未寫入新聞資料庫。";
-  } catch (failure) {
-    if (currentRevision !== revision) return;
-    error.textContent = failure.name === "AbortError" ? "連線逾時，請稍後再試。" : failure.message;
-    error.hidden = false;
-    status.textContent = "段落準備未完成。";
-  } finally {
-    clearTimeout(timer);
-    submit.disabled = false;
-  }
-});
-
-document.getElementById("download-button").addEventListener("click", () => {
-  if (!prepared) return;
-  const blob = new Blob([JSON.stringify(analysis ? { ...prepared, analysis } : prepared, null, 2)], { type: "application/json;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `article-${prepared.document_id.slice(0, 12)}.json`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
-
-
-const labels = { supported: "內文支持", missing_conditions: "重要條件省略", contradicted: "與內文明確衝突", insufficient: "資訊不足" };
+    return data;
+  } finally { clearTimeout(timer); }
+}
+function paragraphMode(body) {
+  if ($("paragraph-mode").value !== "auto") return $("paragraph-mode").value;
+  return /\n\s*\n/.test(body.replace(/\r\n?/g, "\n")) ? "blank_lines" : "line_breaks";
+}
+function element(tag, text) { const node = document.createElement(tag); node.textContent = text; return node; }
 function showAnalysis(data) {
-  analysisResult.replaceChildren();
-  const heading = document.createElement("h2");
-  heading.textContent = labels[data.verdict];
-  const summary = document.createElement("p");
-  summary.textContent = data.summary;
-  const meta = document.createElement("p");
-  meta.className = "hint";
-  meta.textContent = `${data.model_version} · ${data.cached ? "使用已保存結果" : "本次分析"} · ${data.analyzed_at}`;
-  analysisResult.append(heading, summary, meta);
+  const target = $("analysis-result"); target.replaceChildren(); target.dataset.verdict = data.verdict;
+  target.append(element("p", "分析結果"), element("h2", labels[data.verdict] || "無法判定"), element("p", data.summary));
+  const evidenceDetails = document.createElement("details");
+  evidenceDetails.append(element("summary", "查看正文證據與逐項理由"));
   for (const claim of data.claims) {
     const card = document.createElement("article");
-    const title = document.createElement("h3");
-    title.textContent = `${labels[claim.verdict]}：${claim.claim}`;
-    const explanation = document.createElement("p");
-    explanation.textContent = claim.explanation;
-    card.append(title, explanation);
-    for (const evidence of claim.evidence) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = `查看證據 ${evidence.id}`;
-      button.addEventListener("click", () => {
-        for (const node of document.getElementById("paragraph-nav").children) {
-          if (node.textContent === evidence.id) node.click();
-        }
-      });
-      const quote = document.createElement("blockquote");
-      quote.textContent = evidence.text;
-      card.append(button, quote);
-    }
-    if (!claim.evidence.length) {
-      const note = document.createElement("p");
-      note.textContent = "未定位到足夠的正文證據。";
-      card.append(note);
-    }
-    analysisResult.append(card);
+    card.append(element("h3", claim.claim), element("p", `${labels[claim.verdict]}：${claim.explanation}`));
+    for (const evidence of claim.evidence) card.append(element("blockquote", evidence.text));
+    if (!claim.evidence.length) card.append(element("p", "正文中未找到足夠證據。"));
+    evidenceDetails.append(card);
   }
-  const note = document.createElement("p");
-  note.className = "hint";
-  note.textContent = "引用位置已經程式驗證；模型判斷仍可能有誤，請核對原文與上下文。";
-  analysisResult.append(note);
-  analysisResult.hidden = false;
+  target.append(evidenceDetails);
+  $("analysis-meta").textContent = `${data.model_version || data.model} · ${data.cached ? "已保存結果" : "本次分析"} · ${data.analyzed_at}`;
+  $("paragraph-note").textContent = `引用定位共 ${prepared.paragraphs.length} 段。`;
+  $("paragraph-list").replaceChildren();
+  for (const paragraph of prepared.paragraphs) {
+    const card = document.createElement("article");
+    card.append(element("h3", paragraph.id), element("p", paragraph.text));
+    $("paragraph-list").append(card);
+  }
+  $("original-text").textContent = prepared.original_text;
+  $("advanced-result").hidden = false;
+  target.hidden = false; target.focus(); target.scrollIntoView({block:"start", behavior:"smooth"});
 }
-
-analyzeButton.addEventListener("click", async () => {
-  if (!prepared || analyzing) return;
-  if (prepared.original_text.length > 20000 || prepared.paragraphs.length > 400) {
-    error.textContent = "第一版分析最多 20,000 字元、400 段；正文不會被截斷。";
-    error.hidden = false;
-    return;
-  }
-  const currentRevision = revision;
-  const snapshot = prepared;
-  analyzing = true;
-  analyzeButton.disabled = true;
-  error.hidden = true;
-  status.textContent = "Gemini 正在比對標題與正文，請稍候…";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 90000);
+$("analysis-form").addEventListener("submit", async event => {
+  event.preventDefault(); if (busy) return;
+  clearResult(); busy = true; $("input-fields").disabled = true; $("analyze-button").textContent = "分析中…";
   try {
-    const response = await fetch("/headline/analyze", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({title: snapshot.title, content: snapshot.original_text, paragraph_mode: snapshot.paragraph_mode, document_id: snapshot.document_id}),
-      signal: controller.signal,
-    });
-    const data = await response.json();
-    if (currentRevision !== revision) return;
-    if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : data.detail?.message || "分析失敗，請稍後再試。");
-    if (data.document_id !== snapshot.document_id) throw new Error("文章版本不一致，請重新預覽。");
-    analysis = data;
-    showAnalysis(data);
-    status.textContent = "分析完成，結果已保存。點選證據可查看原段落。";
+    let title = $("title").value, body = $("content").value;
+    if (mode === "url") {
+      $("status").textContent = "正在讀取新聞…";
+      fetched = await request("/articles/preview", {url: $("url-input").value.trim()}, 45000);
+      title = fetched.title || ""; body = fetched.body || "";
+      $("title").value = title; $("content").value = body; setMode("text");
+      if (!fetched.ok || !title.trim() || !body.trim() || fetched.warnings?.length) {
+        showError(fetched.ok ? `請確認或補齊正文後再按「分析標題」。${(fetched.warnings || []).join(" ")}` : `${fetched.message || "無法自動擷取這篇文章。"} 請貼上標題與完整正文，再按「分析標題」。`);
+        $("status").textContent = "需要補充或確認文章內容，尚未呼叫 AI。";
+        return;
+      }
+    }
+    if (!title.trim() || !body.trim()) throw new Error("請提供標題與完整正文。");
+    if (body.length > 20000) throw new Error("正文最多 20,000 字元，請確認貼上的內容；系統不會截斷原文。");
+    $("status").textContent = "正在比對標題與正文…";
+    prepared = await request("/articles/prepare", {title, content:body, paragraph_mode:paragraphMode(body)});
+    if (prepared.paragraphs.length > 400) throw new Error("文章段落過多，請在進階設定中調整段落處理方式。");
+    const data = await request("/headline/analyze", {title:prepared.title, content:prepared.original_text, paragraph_mode:prepared.paragraph_mode, document_id:prepared.document_id}, 90000);
+    if (data.document_id !== prepared.document_id) throw new Error("文章版本不一致，請重新分析。");
+    analysis = data; showAnalysis(data);
+    $("status").textContent = "分析完成。展開證據可核對原文。";
   } catch (failure) {
-    if (currentRevision !== revision) return;
-    error.textContent = failure.name === "AbortError" ? "分析連線逾時；伺服器可能仍在處理，請稍後再試。" : failure.message;
-    error.hidden = false;
-    status.textContent = "未取得分析結果；不會把模型錯誤當作資訊不足。";
+    showError(failure.name === "AbortError" ? "連線逾時，請稍後再試；分析可能仍在處理中。" : failure.message);
+    $("status").textContent = "本次分析未完成，輸入內容已保留。";
   } finally {
-    clearTimeout(timer);
-    analyzing = false;
-    analyzeButton.disabled = false;
+    busy = false; $("input-fields").disabled = false; $("analyze-button").textContent = "分析標題";
   }
 });
-
+$("download-button").addEventListener("click", () => {
+  if (!prepared || !analysis) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify({...prepared, analysis}, null, 2)], {type:"application/json;charset=utf-8"}));
+  const link = document.createElement("a"); link.href = url; link.download = `article-${prepared.document_id.slice(0,12)}.json`;
+  document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url),1000);
+});
+setMode(mode);
 async function loadSavedArticle() {
   const id = new URLSearchParams(location.search).get("article_id");
   if (!id || !/^[1-9][0-9]*$/.test(id)) return;
-  const currentRevision = revision;
-  status.textContent = "正在載入已確認文章…";
+  const version = revision; busy = true; $("input-fields").disabled = true;
   try {
-    const response = await fetch(`/articles/${encodeURIComponent(id)}`, {signal: AbortSignal.timeout(15000)});
-    if (!response.ok) throw new Error("無法載入文章，請回到輸入頁重新確認。");
-    const article = await response.json();
-    if (currentRevision !== revision) return;
-    titleInput.value = article.title;
-    contentInput.value = article.body;
-    modeInput.value = "blank_lines";
-    form.requestSubmit();
-  } catch (failure) {
-    if (currentRevision !== revision) return;
-    error.textContent = failure.message;
-    error.hidden = false;
-    status.textContent = "文章載入失敗。";
-  }
+    const article = await request(`/articles/${encodeURIComponent(id)}`);
+    if (version !== revision) return;
+    setMode("text"); $("title").value = article.title; $("content").value = article.body;
+    $("status").textContent = "文章已載入，按「分析標題」即可。";
+  } catch (failure) { showError("無法載入已確認文章，請重新貼上新聞。"); }
+  finally { busy = false; $("input-fields").disabled = false; }
 }
 loadSavedArticle();

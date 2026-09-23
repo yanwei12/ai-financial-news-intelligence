@@ -151,6 +151,30 @@ def test_combined_app_pages_and_routes(monkeypatch):
     with TestClient(app) as client:
         assert client.get("/paragraphs").status_code == 200
         assert 'id="analyze-button"' in client.get("/paragraphs").text
-        assert 'id="analyze-link"' in client.get("/check").text
+        assert 'id="analyze-button"' in client.get("/check").text
         assert "post" in client.get("/openapi.json").json()["paths"]["/headline/analyze"]
     called.assert_called_once()
+
+
+def test_billing_failure_is_actionable_and_not_cached(client, monkeypatch, article):
+    response = Mock(status_code=402, text="SECRET provider details")
+    monkeypatch.setattr(headline.requests, "post", Mock(return_value=response))
+    failed = client.post("/headline/analyze", json=payload(article))
+    assert failed.status_code == 402
+    assert failed.json()["detail"]["code"] == "billing_required"
+    assert "付款" in failed.json()["detail"]["message"]
+    assert "SECRET" not in failed.text
+    monkeypatch.setattr(headline, "call_gemini", Mock(return_value=(output(), {}, "test")))
+    recovered = client.post("/headline/analyze", json=payload(article))
+    assert recovered.status_code == 200
+    assert recovered.json()["cached"] is False
+
+
+def test_truncated_output_explains_usage(article, monkeypatch):
+    response = Mock(status_code=200)
+    response.json.return_value = {"candidates": [{"finishReason": "MAX_TOKENS"}]}
+    monkeypatch.setattr(headline.requests, "post", Mock(return_value=response))
+    with pytest.raises(headline.AnalysisError) as error:
+        headline.call_gemini(article, "SECRET", "gemini-test")
+    assert error.value.code == "output_truncated"
+    assert "token" in error.value.message

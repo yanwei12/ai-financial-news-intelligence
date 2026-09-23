@@ -68,7 +68,7 @@ def test_check_page_renders_with_limits(client):
     response = client.get("/check")
     assert response.status_code == 200
     assert "貼上新聞網址" in response.text
-    assert 'data-min-chars="100"' in response.text
+    assert 'id="analyze-button"' in response.text
     assert "tw.stock.yahoo.com" in response.text
     # Pasting text can be chosen up front as well as after a failed fetch.
     assert 'id="to-paste"' in response.text

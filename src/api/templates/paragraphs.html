@@ -3,42 +3,52 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>標題照妖鏡｜正文段落預覽</title>
-  <link rel="stylesheet" href="/static/paragraphs.css">
-  <script src="/static/paragraphs.js" defer></script>
+  <title>標題照妖鏡｜標題符合內文嗎？</title>
+  <link rel="stylesheet" href="/static/paragraphs.css?v=3">
+  <script src="/static/paragraphs.js?v=3" defer></script>
 </head>
 <body>
 <main>
-  <header><p class="eyebrow">標題照妖鏡 · 正文準備</p><h1>保留上下文，讓每段證據有位置</h1>
-    <p>貼上標題與完整內文，先預覽段落，再選擇 Gemini 分析。產生預覽時尚未執行 AI 判斷。</p>
-    <a href="/check">從新聞網址開始</a> · <a href="/dashboard">原新聞 Dashboard</a> · <a href="/docs">API 文件</a>
+  <header><p class="eyebrow">標題照妖鏡</p><h1>標題符合內文嗎？</h1>
+    <p>貼上一則新聞，直接看符合程度、原因與正文證據。</p>
+    <a href="/dashboard">新聞 Dashboard</a>
   </header>
-  <form id="prepare-form">
-    <label for="title">新聞標題</label>
-    <input id="title" name="title" required maxlength="2000" placeholder="請輸入新聞標題">
-    <label for="content">完整內文（純文字）</label>
-    <textarea id="content" name="content" required maxlength="200000" rows="12" placeholder="請保留原本的段落與換行"></textarea>
-    <label for="paragraph-mode">正文如何區分段落？</label>
-    <select id="paragraph-mode">
-      <option value="blank_lines">以空白行分段（保留段內單次換行）</option>
-      <option value="line_breaks">每次換行就是一段</option>
-    </select>
-    <p class="hint">不依句號或小數點切句。沒有分段符號時保留為一整段，不猜測段落。</p>
-    <div class="actions"><button type="submit" id="prepare-button">產生段落預覽</button><button type="button" id="sample-button" class="secondary">載入虛構範例</button></div>
-    <p id="error" role="alert" hidden></p>
+  <form id="analysis-form">
+    <fieldset id="input-fields">
+      <div class="actions" aria-label="輸入方式">
+        <button type="button" id="to-url" class="secondary" aria-pressed="false">貼上新聞網址</button>
+        <button type="button" id="to-paste" class="secondary" aria-pressed="false">貼上標題與內文</button>
+      </div>
+      <div id="url-fields">
+        <label for="url-input">新聞網址</label>
+        <input id="url-input" type="url" maxlength="2048" placeholder="https://tw.stock.yahoo.com/news/…">
+        <p class="hint">目前支援 Yahoo 奇摩新聞／股市（tw.news.yahoo.com、tw.stock.yahoo.com）。其他來源可直接貼上正文。</p>
+      </div>
+      <div id="text-fields" hidden>
+        <label for="title">新聞標題</label>
+        <input id="title" maxlength="2000" placeholder="請輸入新聞標題">
+        <label for="content">新聞內文</label>
+        <textarea id="content" rows="9" maxlength="20000" placeholder="貼上完整正文，保留原本換行即可"></textarea>
+      </div>
+      <details id="settings"><summary>進階設定</summary>
+        <label for="paragraph-mode">段落處理</label>
+        <select id="paragraph-mode"><option value="auto">自動辨識換行</option><option value="blank_lines">以空白行分段</option><option value="line_breaks">每次換行分段</option></select>
+        <p class="hint">只整理引用位置，保留原文內容。</p>
+        <button type="button" id="sample-button" class="secondary">載入虛構範例</button>
+      </details>
+      <p class="hint">按下分析會將標題與正文傳送至 Google Gemini，可能使用 API 額度。結果只比對本文，不是外部事實查核。</p>
+      <button type="submit" id="analyze-button">分析標題</button>
+    </fieldset>
+    <p id="error" role="alert" tabindex="-1" hidden></p>
   </form>
   <p id="status" role="status" aria-live="polite"></p>
-  <section id="result" hidden aria-labelledby="result-title">
-    <div class="result-header"><h2 id="result-title">正文段落</h2><button type="button" id="download-button">下載 JSON</button></div>
-    <p id="paragraph-note" class="hint"></p>
-    <p>點選段落編號或分析結果中的證據可高亮原段落。</p>
-    <p class="hint">按下分析會將標題與完整正文傳送至 Google Gemini，可能產生 API 費用。第一版最多 20,000 字元、400 段；判斷僅根據本文，不是外部事實查核。</p>
-    <button type="button" id="analyze-button">使用 Gemini 分析標題</button>
-    <div id="analysis-result" hidden aria-live="polite"></div>
-    <nav id="paragraph-nav" aria-label="段落導覽"></nav>
-    <div id="paragraph-list"></div>
-    <details><summary>查看輸入原文（未改寫）</summary><pre id="original-text"></pre></details>
-  </section>
+  <section id="analysis-result" tabindex="-1" hidden aria-live="polite"></section>
+  <details id="advanced-result" hidden><summary>進階資訊與完整原文</summary>
+    <p id="analysis-meta" class="hint"></p>
+    <button type="button" id="download-button">下載 JSON</button>
+    <p id="paragraph-note" class="hint"></p><div id="paragraph-list"></div>
+    <details><summary>輸入原文</summary><pre id="original-text"></pre></details>
+  </details>
 </main>
 </body>
 </html>
