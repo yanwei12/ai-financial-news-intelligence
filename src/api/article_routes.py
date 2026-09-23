@@ -22,6 +22,7 @@ from src.api.article_schemas import (
     PreviewRequest,
     PreviewResponse,
 )
+from src.api.ratelimit import limit_requests
 from src.database.article_repository import ArticleRepository
 from src.database.database import engine
 from src.database.models import Article
@@ -39,6 +40,10 @@ TITLE_MAX_CHARS = 500
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+
+# Fetching reaches another site, so it is limited more tightly than saving.
+preview_limit = limit_requests("PREVIEW", 20)
+confirm_limit = limit_requests("CONFIRM", 60)
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -64,7 +69,7 @@ def check_page(request: Request):
     )
 
 
-@router.post("/articles/preview", response_model=PreviewResponse)
+@router.post("/articles/preview", response_model=PreviewResponse, dependencies=[Depends(preview_limit)])
 def preview_article(payload: PreviewRequest) -> PreviewResponse:
     result = fetch_article(payload.url)
     return PreviewResponse(
@@ -85,7 +90,7 @@ def preview_article(payload: PreviewRequest) -> PreviewResponse:
     )
 
 
-@router.post("/articles", response_model=ConfirmResponse)
+@router.post("/articles", response_model=ConfirmResponse, dependencies=[Depends(confirm_limit)])
 def confirm_article(
     payload: ConfirmRequest,
     response: Response,

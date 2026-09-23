@@ -1,0 +1,39 @@
+{
+  "sample_id": "r-d89ee487",
+  "group_id": "g-tsmc-2nm-mediatek",
+  "annotator": "claude-draft",
+  "is_synthetic": false,
+  "article": {
+    "title": "狠甩三星！台積電2奈米再奪聯發科大單 韓媒認了：產能良率佔絕對優勢",
+    "document_id": "91965ae7ea7b8abba412fb95a7215b18a34e828d1ebaecd4876f87b39e6c897a",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "url": "https://tw.stock.yahoo.com/news/%E7%8B%A0%E7%94%A9%E4%B8%89%E6%98%9F-%E5%8F%B0%E7%A9%8D%E9%9B%BB2%E5%A5%88%E7%B1%B3%E5%86%8D%E5%A5%AA%E8%81%AF%E7%99%BC%E7%A7%91%E5%A4%A7%E5%96%AE-%E9%9F%93%E5%AA%92%E8%AA%8D%E4%BA%86-%E7%94%A2%E8%83%BD%E8%89%AF%E7%8E%87%E4%BD%94%E7%B5%95%E5%B0%8D%E5%84%AA%E5%8B%A2-034500130.html",
+    "content_hash": "d89ee48796a4c314edb2cba88babdd0ea0dd29ae94fb72339c03aa357cf0d071"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "台積電2奈米再奪得聯發科的訂單",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P002",
+        "P004"
+      ],
+      "note": "[信心:中] 聯發科天璣9600 Pro採用台積電2奈米N2P。「大單」的規模內文沒有量化，只說接連取得大型晶片設計業者訂單；視為摘要式用語，不算落差。"
+    },
+    {
+      "claim_id": "C2",
+      "text": "韓媒認為台積電在產能與良率上佔絕對優勢",
+      "relation": "supports",
+      "gap_type": "certainty",
+      "evidence_ids": [
+        "P002",
+        "P003",
+        "P005"
+      ],
+      "note": "[信心:中] 內文核心事實相同（韓媒認為台積電取得優勢），但說的是「取得更多優勢」「意味著進展」；同時寫三星也在改善良率、高通訂單分配「仍有待確認」。「絕對」與「認了」把仍在競爭的結果說成定論。「狠甩三星」是語氣詞，未另列為主張。"
+    }
+  ]
+}

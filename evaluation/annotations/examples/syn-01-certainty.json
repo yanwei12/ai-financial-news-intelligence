@@ -1,0 +1,26 @@
+{
+  "sample_id": "syn-01-certainty",
+  "group_id": "syn-01",
+  "annotator": "example",
+  "is_synthetic": true,
+  "article": {
+    "title": "星河公司確定調漲價格",
+    "document_id": "8cbb84a671b134f05abdb4a061b6b82bf625de9c57c6974c96c9761fd3612acf",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "text": "星河公司今天在例行會議上表示，正在評估調整部分產品的售價，以因應原料成本上升。\n\n公司發言人指出，目前仍在蒐集各方意見，尚未作出最終決定，何時公布結論也未定。\n\n分析師認為，若最終決定調漲，幅度可能落在一成以內，但仍須視下季成本而定。"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "星河公司已確定調漲價格",
+      "relation": "supports",
+      "gap_type": "certainty",
+      "evidence_ids": [
+        "P001",
+        "P002"
+      ],
+      "note": "標題寫「確定」，正文兩段都說仍在評估、尚未決定。"
+    }
+  ]
+}

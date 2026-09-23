@@ -1,0 +1,39 @@
+{
+  "sample_id": "r-85577239",
+  "group_id": "g-tsmc-longtan",
+  "annotator": "claude-draft",
+  "is_synthetic": false,
+  "article": {
+    "title": "台積電直攻1.4奈米以下技術！正面迎戰英特爾14A 傳2030年量產",
+    "document_id": "f00189beb4c2cfea366328d762bfe464138b20ead13c44faf3018d3989edaea6",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "url": "https://tw.stock.yahoo.com/news/%E5%8F%B0%E7%A9%8D%E9%9B%BB%E7%9B%B4%E6%94%BB1-4%E5%A5%88%E7%B1%B3%E4%BB%A5%E4%B8%8B%E6%8A%80%E8%A1%93-%E6%AD%A3%E9%9D%A2%E8%BF%8E%E6%88%B0%E8%8B%B1%E7%89%B9%E7%88%BE14a-%E5%82%B32030%E5%B9%B4%E9%87%8F%E7%94%A2-041500607.html",
+    "content_hash": "85577239c15080d6a4bc0c360430b45aae16ec4e8418efe6ebdfb61c70e94035"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "台積電直攻1.4奈米以下技術，並擴建晶圓廠迎戰英特爾14A",
+      "relation": "supports",
+      "gap_type": "certainty",
+      "evidence_ids": [
+        "P002",
+        "P003",
+        "P005"
+      ],
+      "note": "[信心:低，請優先審] 標題前半「直攻1.4奈米以下技術！正面迎戰英特爾14A」語氣肯定，內文卻全是「傳出」「據供應鏈消息」「有意」「規劃」，擴建也只是國發會審議通過的草案、尚須行政院核定與環評，內文自己說仍以供應鏈消息為主（P002、P003、P005）。但標題結尾的「傳」可以理解為涵蓋整句，也可以理解為只修飾「2030年量產」；若你採前一種讀法，這筆應改為 supports / none。"
+    },
+    {
+      "claim_id": "C2",
+      "text": "傳台積電2030年量產埃米級製程",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P002",
+        "P005"
+      ],
+      "note": "[信心:中] 標題已用「傳」；內文P005明說2030年是首座廠預計完工並準備量產的目標，並非正式確認日期，兩者語氣一致。「完工並準備量產」與「量產」略有差別，屬摘要式用語。"
+    }
+  ]
+}

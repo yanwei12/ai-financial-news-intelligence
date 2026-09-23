@@ -5,18 +5,33 @@ let busy = false;
 let revision = 0;
 let prepared = null;
 let analysis = null;
+<<<<<<< HEAD
 let fetched = null;
 const labels = { supported: "符合正文", missing_conditions: "部分符合，省略重要條件", contradicted: "不符合，與正文衝突", insufficient: "無法判定，正文證據不足" };
+=======
+let analyzing = false;
+let savedArticleId = null;  // set only while the text is exactly a confirmed article; any edit clears it
+const analyzeButton = document.getElementById("analyze-button");
+const analysisResult = document.getElementById("analysis-result");
+>>>>>>> 3bcb6d79fbb295bd5c403019be552a78c6dafcf9
 
 function clearResult() {
   revision += 1;
   prepared = null;
   analysis = null;
+<<<<<<< HEAD
   $("analysis-result").hidden = true;
   $("advanced-result").hidden = true;
   $("advanced-result").open = false;
   $("error").hidden = true;
   $("status").textContent = "";
+=======
+  savedArticleId = null;
+  analysisResult.hidden = true;
+  result.hidden = true;
+  error.hidden = true;
+  status.textContent = "內容已變更，請重新產生段落預覽。";
+>>>>>>> 3bcb6d79fbb295bd5c403019be552a78c6dafcf9
 }
 function setMode(next) {
   mode = next;
@@ -90,6 +105,7 @@ function showAnalysis(data) {
   $("advanced-result").hidden = false;
   target.hidden = false; target.focus(); target.scrollIntoView({block:"start", behavior:"smooth"});
 }
+<<<<<<< HEAD
 $("analysis-form").addEventListener("submit", async event => {
   event.preventDefault(); if (busy) return;
   clearResult(); busy = true; $("input-fields").disabled = true; $("analyze-button").textContent = "分析中…";
@@ -115,6 +131,39 @@ $("analysis-form").addEventListener("submit", async event => {
     if (data.document_id !== prepared.document_id) throw new Error("文章版本不一致，請重新分析。");
     analysis = data; showAnalysis(data);
     $("status").textContent = "分析完成。展開證據可核對原文。";
+=======
+
+analyzeButton.addEventListener("click", async () => {
+  if (!prepared || analyzing) return;
+  // Same unit as the server and /check: characters other than whitespace.
+  if (prepared.original_text.replace(/\s/g, "").length > 20000 || prepared.paragraphs.length > 400) {
+    error.textContent = "第一版分析最多 20,000 字（不含空白）、400 段；正文不會被截斷。";
+    error.hidden = false;
+    return;
+  }
+  const currentRevision = revision;
+  const snapshot = prepared;
+  const articleId = savedArticleId;
+  analyzing = true;
+  analyzeButton.disabled = true;
+  error.hidden = true;
+  status.textContent = "Gemini 正在比對標題與正文，請稍候…";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  try {
+    const response = await fetch("/headline/analyze", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({title: snapshot.title, content: snapshot.original_text, paragraph_mode: snapshot.paragraph_mode, document_id: snapshot.document_id, article_id: articleId}),
+      signal: controller.signal,
+    });
+    const data = await response.json();
+    if (currentRevision !== revision) return;
+    if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : data.detail?.message || "分析失敗，請稍後再試。");
+    if (data.document_id !== snapshot.document_id) throw new Error("文章版本不一致，請重新預覽。");
+    analysis = data;
+    showAnalysis(data);
+    status.textContent = "分析完成，結果已保存。點選證據可查看原段落。";
+>>>>>>> 3bcb6d79fbb295bd5c403019be552a78c6dafcf9
   } catch (failure) {
     showError(failure.name === "AbortError" ? "連線逾時，請稍後再試；分析可能仍在處理中。" : failure.message);
     $("status").textContent = "本次分析未完成，輸入內容已保留。";
@@ -134,11 +183,29 @@ async function loadSavedArticle() {
   if (!id || !/^[1-9][0-9]*$/.test(id)) return;
   const version = revision; busy = true; $("input-fields").disabled = true;
   try {
+<<<<<<< HEAD
     const article = await request(`/articles/${encodeURIComponent(id)}`);
     if (version !== revision) return;
     setMode("text"); $("title").value = article.title; $("content").value = article.body;
     $("status").textContent = "文章已載入，按「分析標題」即可。";
   } catch (failure) { showError("無法載入已確認文章，請重新貼上新聞。"); }
   finally { busy = false; $("input-fields").disabled = false; }
+=======
+    const response = await fetch(`/articles/${encodeURIComponent(id)}`, {signal: AbortSignal.timeout(15000)});
+    if (!response.ok) throw new Error("無法載入文章，請回到輸入頁重新確認。");
+    const article = await response.json();
+    if (currentRevision !== revision) return;
+    titleInput.value = article.title;
+    contentInput.value = article.body;
+    modeInput.value = "blank_lines";
+    form.requestSubmit();
+    savedArticleId = article.id;  // after submit: requestSubmit does not fire the "input" event that clears it
+  } catch (failure) {
+    if (currentRevision !== revision) return;
+    error.textContent = failure.message;
+    error.hidden = false;
+    status.textContent = "文章載入失敗。";
+  }
+>>>>>>> 3bcb6d79fbb295bd5c403019be552a78c6dafcf9
 }
 loadSavedArticle();

@@ -1,0 +1,49 @@
+{
+  "sample_id": "r-af7de4c3",
+  "group_id": "g-corning-glass",
+  "annotator": "claude-draft",
+  "is_synthetic": false,
+  "article": {
+    "title": "康寧帶頭喊漲15%！「玻璃基板」掀AI封裝新賽道 台積電、三星、英特爾全搶進",
+    "document_id": "0e6f1c264826cf264c84036a8d8e450be5ae0e0ec6d5a87dfdda69bda153a1fa",
+    "paragraph_mode": "blank_lines",
+    "preparation_version": "paragraphs-v1",
+    "url": "https://tw.stock.yahoo.com/news/%E5%BA%B7%E5%AF%A7%E5%B8%B6%E9%A0%AD%E5%96%8A%E6%BC%B215-%E7%8E%BB%E7%92%83%E5%9F%BA%E6%9D%BF-%E6%8E%80ai%E5%B0%81%E8%A3%9D%E6%96%B0%E8%B3%BD%E9%81%93-%E5%8F%B0%E7%A9%8D%E9%9B%BB-%E4%B8%89%E6%98%9F-064000533.html",
+    "content_hash": "af7de4c34a8c08e20bee21f6cc3ef1702ac7c104360eb3aa0b2474922a90b697"
+  },
+  "claims": [
+    {
+      "claim_id": "C1",
+      "text": "康寧帶頭宣布調漲玻璃基板價格15%以上",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P002",
+        "P003"
+      ],
+      "note": "[信心:高] P002：康寧宣布自2026年第四季起全球調漲以日圓計價的顯示玻璃基板價格達15%以上；P003：市場預期AGC、NEG跟進，對應「帶頭」。注意這是面板用的顯示玻璃，與AI封裝的關聯記在C2。"
+    },
+    {
+      "claim_id": "C2",
+      "text": "玻璃基板漲價與AI封裝熱潮有關（漲價由AI需求帶動）",
+      "relation": "insufficient",
+      "gap_type": "insufficient",
+      "evidence_ids": [
+        "P002",
+        "P003",
+        "P004"
+      ],
+      "note": "[信心:中] 依審閱者意見由scope修訂（v0.2「並列暗示因果」規則）。標題把「喊漲15%」與「掀AI封裝新賽道」並列。內文給的漲價原因是日圓走貶與通膨、原物料、能源、物流成本（P002、P003），對象是顯示玻璃；AI封裝用的玻璃基板在P004被寫成另一個「全新戰場」。沒有任何一句支持AI帶動漲價，也沒有明說無關，所以標insufficient而非contradiction。"
+    },
+    {
+      "claim_id": "C3",
+      "text": "台積電、三星、英特爾都在搶進玻璃基板",
+      "relation": "supports",
+      "gap_type": "none",
+      "evidence_ids": [
+        "P006"
+      ],
+      "note": "[信心:中] 內文寫台積電推進導入CoPoS的技術驗證，英特爾與三星也積極推展各自方案。「搶進」對應「積極推展」，可接受；台積電仍在驗證階段屬細節，不算範圍落差。"
+    }
+  ]
+}
