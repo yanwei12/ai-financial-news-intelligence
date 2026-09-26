@@ -6,16 +6,9 @@ article, or a specific failure reason. It never guesses: if the body cannot be
 found or looks incomplete, the result says so instead of passing partial text
 off as a success.
 
-Safety rules (only user-submitted single URLs are fetched, never crawled):
-  * only hosts listed in article_sources.SOURCES,
-  * http/https on the default ports, no credentials in the URL,
-  * every host (including each redirect hop) must resolve to public addresses,
-  * robots.txt is honoured for our user agent,
-  * bounded redirects, download size and total time.
-
-Known gap: the address check and the connection are two separate DNS lookups,
-so a hostile DNS server could still race them. The host allowlist is the main
-protection; pin the resolved IP if this ever serves untrusted traffic.
+Public article URLs use site-specific extraction when available and a generic
+extractor otherwise. Every connection pins a validated public IP, including
+robots.txt and redirects. No proxy environment variables are used.
 """
 
 from __future__ import annotations
@@ -32,6 +25,9 @@ from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import requests
+import certifi
+import urllib3
+from trafilatura import bare_extraction
 from bs4 import BeautifulSoup
 
 from src.ingestion.article_sources import SOURCES, SourceConfig, find_source
@@ -84,6 +80,7 @@ class FailureReason(str, Enum):
     NO_BODY = "no_body"
     BODY_TOO_SHORT = "body_too_short"
     BODY_TOO_LONG = "body_too_long"
+    RESTRICTED_CONTENT = "restricted_content"
 
 
 def failure_message(
@@ -117,6 +114,7 @@ def failure_message(
         FailureReason.NOT_HTML: "網址指向的不是網頁內容。",
         FailureReason.TOO_LARGE: "網頁檔案過大，已停止下載。",
         FailureReason.TOO_MANY_REDIRECTS: "網址轉址次數過多，已停止擷取。",
+        FailureReason.RESTRICTED_CONTENT: "文章需要登入或訂閱，請改貼上你能閱讀的完整正文。",
         FailureReason.NO_BODY: "找不到文章正文。這可能不是單篇新聞頁，或網站版面已改版。",
     }[reason]
 
@@ -166,9 +164,36 @@ def _default_resolver(host: str, port: int) -> list:
 # ---------------------------------------------------------------- URL safety
 
 
-def _check_url(url: str, resolver: Resolver) -> SourceConfig:
-    """Validate one URL (the submitted one or a redirect target)."""
-    if not url or len(url) > MAX_URL_LENGTH:
+def _public_addresses(host: str, port: int, resolver: Resolver) -> list[str]:
+    normalized = host.lower().rstrip(".")
+    if normalized == "localhost" or normalized.endswith((".localhost", ".local", ".internal")):
+        raise FetchError(FailureReason.BLOCKED_ADDRESS)
+    try:
+        literal = ipaddress.ip_address(normalized)
+    except ValueError:
+        literal = None
+    if literal is not None and not literal.is_global:
+        raise FetchError(FailureReason.BLOCKED_ADDRESS)
+    try:
+        infos = resolver(host, port)
+    except OSError:
+        raise FetchError(FailureReason.NETWORK_ERROR) from None
+    if not infos:
+        raise FetchError(FailureReason.NETWORK_ERROR)
+    addresses = []
+    for info in infos:
+        try:
+            address = ipaddress.ip_address(str(info[4][0]).split("%")[0])
+        except ValueError:
+            raise FetchError(FailureReason.BLOCKED_ADDRESS) from None
+        if not address.is_global or address.is_multicast:
+            raise FetchError(FailureReason.BLOCKED_ADDRESS)
+        addresses.append(str(address))
+    return addresses
+
+
+def _check_url(url: str, resolver: Resolver, allow_generic: bool = False) -> SourceConfig:
+    if not url or len(url) > MAX_URL_LENGTH or any(ord(c) < 32 for c in url) or "\\" in url:
         raise FetchError(FailureReason.INVALID_URL)
     try:
         parts = urlsplit(url)
@@ -179,20 +204,63 @@ def _check_url(url: str, resolver: Resolver) -> SourceConfig:
         raise FetchError(FailureReason.INVALID_URL)
     if parts.username or parts.password or port not in (None, 80, 443):
         raise FetchError(FailureReason.INVALID_URL)
-
     source = find_source(parts.hostname)
-    if source is None:
+    if source is None and not allow_generic:
         raise FetchError(FailureReason.SOURCE_NOT_ALLOWED)
+    _public_addresses(parts.hostname, port or (443 if parts.scheme == "https" else 80), resolver)
+    return source or SourceConfig(name=parts.hostname.lower(), domains=(parts.hostname.lower(),), generic=True)
 
-    try:
-        infos = resolver(parts.hostname, port or (443 if parts.scheme == "https" else 80))
-    except OSError:
-        raise FetchError(FailureReason.NETWORK_ERROR) from None
-    for info in infos:
-        address = ipaddress.ip_address(str(info[4][0]).split("%")[0])
-        if not address.is_global:
-            raise FetchError(FailureReason.BLOCKED_ADDRESS)
-    return source
+
+class _PinnedResponse:
+    def __init__(self, response, pool):
+        self.response, self.pool = response, pool
+        self.status_code, self.headers = response.status, response.headers
+
+    def iter_content(self, chunk_size=65536):
+        try:
+            yield from self.response.stream(chunk_size, decode_content=True)
+        except urllib3.exceptions.TimeoutError:
+            raise FetchError(FailureReason.TIMEOUT) from None
+        except urllib3.exceptions.HTTPError:
+            raise FetchError(FailureReason.NETWORK_ERROR) from None
+
+    def close(self):
+        self.response.close()
+        self.pool.close()
+
+
+class _PinnedSession:
+    """Connect to a checked numeric IP while retaining TLS hostname verification."""
+    def __init__(self, resolver):
+        self.resolver = resolver
+
+    def get(self, url, *, headers, timeout, **kwargs):
+        prepared = requests.Request("GET", url).prepare()
+        parts = urlsplit(prepared.url)
+        port = parts.port or (443 if parts.scheme == "https" else 80)
+        address = _public_addresses(parts.hostname, port, self.resolver)[0]
+        options = {"timeout": urllib3.Timeout(connect=timeout[0], read=timeout[1])}
+        if parts.scheme == "https":
+            pool = urllib3.HTTPSConnectionPool(address, port, server_hostname=parts.hostname,
+                assert_hostname=parts.hostname, cert_reqs="CERT_REQUIRED", ca_certs=certifi.where(), **options)
+        else:
+            pool = urllib3.HTTPConnectionPool(address, port, **options)
+        target = parts.path or "/"
+        if parts.query:
+            target += "?" + parts.query
+        try:
+            response = pool.urlopen("GET", target, headers={**headers, "Host": parts.netloc},
+                preload_content=False, redirect=False, retries=False, assert_same_host=False)
+            return _PinnedResponse(response, pool)
+        except urllib3.exceptions.TimeoutError:
+            pool.close()
+            raise FetchError(FailureReason.TIMEOUT) from None
+        except urllib3.exceptions.HTTPError:
+            pool.close()
+            raise FetchError(FailureReason.NETWORK_ERROR) from None
+
+    def close(self):
+        pass
 
 
 # ---------------------------------------------------------------- HTTP layer
@@ -223,14 +291,15 @@ def _request(
     deadline: float,
     check_robots: bool,
     html_only: bool,
+    allow_generic: bool = False,
 ) -> _Page:
     """GET a URL, validating and re-validating every redirect hop by hand."""
     current = url
     for _ in range(MAX_REDIRECTS + 1):
-        source = _check_url(current, resolver)
+        source = _check_url(current, resolver, allow_generic)
         if check_robots and not _robots_allow(
             current, session=session, resolver=resolver,
-            robots_cache=robots_cache, deadline=deadline,
+            robots_cache=robots_cache, deadline=deadline, allow_generic=allow_generic,
         ):
             raise FetchError(FailureReason.ROBOTS_DISALLOWED)
 
@@ -275,6 +344,7 @@ def _robots_allow(
     resolver: Resolver,
     robots_cache: RobotsCache,
     deadline: float,
+    allow_generic: bool = False,
 ) -> bool:
     parts = urlsplit(url)
     origin = f"{parts.scheme}://{parts.netloc}"
@@ -287,7 +357,7 @@ def _robots_allow(
         page = _request(
             f"{origin}/robots.txt", session=session, resolver=resolver,
             robots_cache=robots_cache, deadline=deadline,
-            check_robots=False, html_only=False,
+            check_robots=False, html_only=False, allow_generic=allow_generic,
         )
     except FetchError as error:
         # RFC 9309: a missing robots.txt (4xx) means "no restrictions".
@@ -330,7 +400,9 @@ def _json_ld_article(soup: BeautifulSoup) -> dict:
             item = stack.pop(0)
             if not isinstance(item, dict):
                 continue
-            stack.extend(item.get("@graph", []))
+            graph = item.get("@graph")
+            if isinstance(graph, list):
+                stack.extend(graph)
             kind = item.get("@type")
             kinds = kind if isinstance(kind, list) else [kind]
             if any(k in ("NewsArticle", "Article", "ReportageNewsArticle") for k in kinds):
@@ -341,7 +413,9 @@ def _json_ld_article(soup: BeautifulSoup) -> dict:
 def _extract_paragraphs(article: Any, source: SourceConfig) -> list[str]:
     paragraphs: list[str] = []
     for container in article.select(", ".join(source.body_selectors)):
-        for element in container.find_all(source.block_tags, recursive=False):
+        blocks = (container.select(source.block_selector) if source.block_selector
+                  else container.find_all(source.block_tags, recursive=False))
+        for element in blocks:
             for line_break in element.find_all("br"):
                 line_break.replace_with(" ")
             text = collapse_inline_whitespace(element.get_text())
@@ -355,9 +429,40 @@ def _extract_paragraphs(article: Any, source: SourceConfig) -> list[str]:
     return paragraphs
 
 
+def _extract_generic(soup: BeautifulSoup, metadata: dict) -> _Extracted:
+    # Require an article signal so search results and home pages are not combined.
+    og_type = soup.find("meta", property="og:type")
+    if not metadata and not soup.select_one("article, [itemprop=articleBody]") and not (
+        og_type and og_type.get("content", "").lower() == "article"
+    ):
+        return _Extracted(None, None, [])
+    for element in soup.select("nav, footer, aside, form, script, style, [hidden], [aria-hidden=true]"):
+        element.decompose()
+    # Local HTML only: extraction never downloads another URL.
+    document = bare_extraction(str(soup), favor_precision=True, include_comments=False,
+        include_tables=False, include_links=False, with_metadata=True,
+        date_extraction_params={"extensive_search": False})
+    if document is None or not document.text:
+        return _Extracted(None, None, [])
+    headline = metadata.get("headline")
+    title = headline if isinstance(headline, str) and headline.strip() else document.title
+    if not title:
+        heading = soup.find("h1")
+        title = heading.get_text() if heading else None
+    paragraphs = [collapse_inline_whitespace(p) for p in document.text.splitlines() if p.strip()]
+    if title and paragraphs and paragraphs[0] == collapse_inline_whitespace(title):
+        paragraphs.pop(0)
+    return _Extracted(collapse_inline_whitespace(title) if isinstance(title, str) else None,
+                      _parse_datetime(metadata.get("datePublished")), paragraphs)
+
+
 def _extract(content: bytes, source: SourceConfig) -> _Extracted:
     soup = BeautifulSoup(content, "html.parser")
     ld = _json_ld_article(soup)
+    if ld.get("isAccessibleForFree") in (False, "false", "False"):
+        raise FetchError(FailureReason.RESTRICTED_CONTENT)
+    if source.generic:
+        return _extract_generic(soup, ld)
     article = soup.select_one(source.article_selector)
 
     title = None
@@ -402,7 +507,7 @@ def fetch_article(
     url = (url or "").strip()
     result = FetchResult(url=url, fetched_at=datetime.now(timezone.utc))
     own_session = session is None
-    session = session or requests.Session()
+    session = session or _PinnedSession(resolver or _default_resolver)
     try:
         page = _request(
             url,
@@ -412,6 +517,7 @@ def fetch_article(
             deadline=time.monotonic() + TOTAL_TIMEOUT,
             check_robots=True,
             html_only=True,
+            allow_generic=True,
         )
     except FetchError as error:
         return _fail(result, error.reason, status=error.status)
@@ -422,7 +528,10 @@ def fetch_article(
     result.final_url = page.final_url
     result.source = page.source.name
 
-    extracted = _extract(page.content, page.source)
+    try:
+        extracted = _extract(page.content, page.source)
+    except FetchError as error:
+        return _fail(result, error.reason, status=error.status)
     result.title = extracted.title
     result.published_at = extracted.published_at
 
@@ -468,7 +577,7 @@ def fetch_document(
     rules as fetch_article. Returns (final_url, content); raises FetchError.
     """
     own_session = session is None
-    session = session or requests.Session()
+    session = session or _PinnedSession(resolver or _default_resolver)
     try:
         page = _request(
             (url or "").strip(),

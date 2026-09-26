@@ -31,8 +31,8 @@ python -m scripts.analyze_news
 
 uvicorn src.api.main:app --reload
 
+http://127.0.0.1:8000/check
 http://127.0.0.1:8000/dashboard
 http://127.0.0.1:8000/docs  Dashboard，查詢新聞與情緒分析統計。
-http://18.183.195.250/dashboard 公開網址
 
 """
