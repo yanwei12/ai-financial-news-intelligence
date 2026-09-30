@@ -564,8 +564,6 @@ def fetch_article(
     return result
 
 
-<<<<<<< HEAD
-=======
 def fetch_document(
     url: str,
     *,
@@ -596,7 +594,6 @@ def fetch_document(
             session.close()
 
 
->>>>>>> bbabede88d1808de366dc16ee9cfea8ff3949d12
 def _fail(
     result: FetchResult,
     reason: FailureReason,

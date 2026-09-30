@@ -6,7 +6,7 @@ let revision = 0;
 let prepared = null;
 let analysis = null;
 let fetched = null;
-<<<<<<< HEAD
+let savedArticleId = null;
 const labels = { supported: "相符", missing_conditions: "部分相符", contradicted: "不相符", insufficient: "證據不足" };
 const meanings = {
   supported: "正文支持標題的主要說法。",
@@ -14,10 +14,6 @@ const meanings = {
   contradicted: "標題的說法與正文存在衝突。",
   insufficient: "正文資訊不足，無法判定標題是否相符。",
 };
-=======
-let savedArticleId = null;
-const labels = { supported: "符合正文", missing_conditions: "部分符合，省略重要條件", contradicted: "不符合，與正文衝突", insufficient: "無法判定，正文證據不足" };
->>>>>>> bbabede88d1808de366dc16ee9cfea8ff3949d12
 
 function clearResult(clearArticle = true) {
   if (clearArticle) savedArticleId = null;

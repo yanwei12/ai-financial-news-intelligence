@@ -2,12 +2,7 @@ from collections.abc import Generator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-<<<<<<< HEAD
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse
-=======
 from fastapi import Depends, FastAPI, HTTPException
->>>>>>> bbabede88d1808de366dc16ee9cfea8ff3949d12
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -39,11 +34,6 @@ app.include_router(headline_router)
 
 _API_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=str(_API_DIR / "static")), name="static")
-
-
-@app.get("/", include_in_schema=False)
-def home():
-    return RedirectResponse(url="/check", status_code=307)
 
 
 def get_db() -> Generator[Session, None, None]:

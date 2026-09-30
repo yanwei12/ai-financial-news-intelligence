@@ -6,11 +6,6 @@
 
 使用專案的 Python 虛擬環境執行：
 
-<<<<<<< HEAD
-`POST /headline/analyze` 接收 `title`、`content`、`paragraph_mode` 與 `/articles/prepare` 產生的 `document_id`。第一版上限 20,000 字元、400 段，不截斷。結果有四類判斷、主張、原因、證據 ID、原段落、模型／提示詞版本、时间與用量；以段落引用，尚未切句。缺金鑰、配額、逾時、格式或引用錯誤會明確失敗，不偽裝成資訊不足。
-
-成功結果與輸入快照保存於 SQLite 新表 `headline_analyses`，不改寫原文章。相同輸入、模型、提示詞版本重用結果。單一程序同時只允許一筆分析；目前以本機單一 worker 運行，尚無跨 worker 去重、帳號或公開服務限流。失敗不快取，不自動重試；內容或分段方式修改後須重新預覽。
-=======
 ```powershell
 python -m uvicorn src.api.main:app --reload
 ```
@@ -59,7 +54,6 @@ python -m scripts.usage_report --input-price 0.30 --output-price 2.50
 ```
 
 價格（每百萬 token）由你自己提供，程式不內建任何價格；只讀資料庫，不呼叫模型。
->>>>>>> bbabede88d1808de366dc16ee9cfea8ff3949d12
 
 模型只比對本文，不做外部事實查核；引用存在不代表語意判斷正確，尚待人工評估。程式依據 [Google 結構化輸出文件](https://ai.google.dev/gemini-api/docs/generate-content/structured-output) 使用 REST JSON Schema，並於本機再次驗證。
 
