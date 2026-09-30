@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -57,6 +58,11 @@ app.include_router(headline_router)
 _API_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(_API_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(_API_DIR / "static")), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def home():
+    return RedirectResponse(url="/check", status_code=307)
 
 
 def get_db() -> Generator[Session, None, None]:

@@ -149,6 +149,10 @@ def test_combined_app_pages_and_routes(monkeypatch):
     called = Mock()
     monkeypatch.setattr("src.api.main.create_tables", called)
     with TestClient(app) as client:
+        home = client.get("/", follow_redirects=False)
+        assert home.status_code == 307
+        assert home.headers["location"] == "/check"
+        assert 'id="analyze-button"' in client.get("/").text
         assert client.get("/paragraphs").status_code == 200
         assert 'id="analyze-button"' in client.get("/paragraphs").text
         assert 'id="analyze-button"' in client.get("/check").text
