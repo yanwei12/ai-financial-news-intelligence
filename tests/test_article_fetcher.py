@@ -162,13 +162,9 @@ def test_time_without_zone_is_unknown():
         ("https://user:pw@tw.stock.yahoo.com/a", FailureReason.INVALID_URL),
         ("https://tw.stock.yahoo.com:8443/a", FailureReason.INVALID_URL),
         ("https://[::1/a", FailureReason.INVALID_URL),
-        ("https://example.com/a", FailureReason.SOURCE_NOT_ALLOWED),
-        ("http://localhost/a", FailureReason.SOURCE_NOT_ALLOWED),
-        ("http://127.0.0.1/a", FailureReason.SOURCE_NOT_ALLOWED),
-        ("http://169.254.169.254/latest/meta-data", FailureReason.SOURCE_NOT_ALLOWED),
-        ("https://tw.stock.yahoo.com.evil.example/a", FailureReason.SOURCE_NOT_ALLOWED),
-        ("https://evil-tw.stock.yahoo.com/a", FailureReason.SOURCE_NOT_ALLOWED),
-        ("https://yahoo.com/a", FailureReason.SOURCE_NOT_ALLOWED),
+        ("http://localhost/a", FailureReason.BLOCKED_ADDRESS),
+        ("http://127.0.0.1/a", FailureReason.BLOCKED_ADDRESS),
+        ("http://169.254.169.254/latest/meta-data", FailureReason.BLOCKED_ADDRESS),
     ],
 )
 def test_rejected_urls_never_touch_the_network(url, reason):
@@ -210,17 +206,18 @@ def test_redirect_to_another_allowed_page_is_followed_and_reported():
     assert all(kwargs["allow_redirects"] is False for _, kwargs in session.calls)
 
 
-def test_redirect_to_disallowed_host_is_stopped_before_requesting_it():
+def test_redirect_to_new_public_host_is_checked_and_followed():
     routes = {ARTICLE_URL: FakeResponse(302, headers={"Location": "https://evil.example/x"})}
     result, session = run(routes=routes)
-    assert result.failure_reason is FailureReason.SOURCE_NOT_ALLOWED
-    assert "https://evil.example/x" not in session.urls
+    assert result.failure_reason is FailureReason.HTTP_ERROR
+    assert "https://evil.example/robots.txt" in session.urls
+    assert "https://evil.example/x" in session.urls
 
 
 def test_redirect_to_internal_address_is_stopped():
     routes = {ARTICLE_URL: FakeResponse(302, headers={"Location": "http://169.254.169.254/latest"})}
     result, session = run(routes=routes)
-    assert result.failure_reason is FailureReason.SOURCE_NOT_ALLOWED
+    assert result.failure_reason is FailureReason.BLOCKED_ADDRESS
     assert all("169.254" not in url for url in session.urls)
 
 
@@ -326,3 +323,31 @@ def test_robots_is_cached_per_host():
     for _ in range(2):
         fetch_article(ARTICLE_URL, session=session, resolver=public_resolver, robots_cache=cache)
     assert session.urls.count(ROBOTS_URL) == 1
+
+
+@pytest.mark.parametrize("url, html, expected_source", [
+    ("https://news.pts.org.tw/article/123", '<article><h1>測試</h1><div class="post-article"><div class="articleimg">LEAD</div><p>BODY</p><aside><p>NOISE</p></aside></div></article>', "公視新聞"),
+    ("https://news.ltn.com.tw/news/business/breakingnews/123", '<div class="article"><h1>測試</h1><div class="article_wrap"><div class="text"><p>LEAD</p><p>BODY</p><p class="before_ir">NOISE</p><p class="appE1121">NOISE</p><div class="photo"><p>NOISE</p></div></div></div></div>', "自由時報"),
+])
+def test_new_sources_keep_lead_and_skip_furniture(url, html, expected_source):
+    lead = "公司發布新產品並公布本季營收。" * 15
+    body = "董事會表示下季將持續投資研發。" * 15
+    html = html.replace("LEAD", lead).replace("BODY", body)
+    result, _ = run(url=url, routes={url: FakeResponse(200, html.encode())})
+    assert result.ok
+    assert result.source == expected_source
+    assert result.title == "測試"
+    assert result.body == lead + "\n\n" + body
+    assert result.paragraph_count == 2
+
+
+@pytest.mark.parametrize("host", ["news.pts.org.tw", "news.ltn.com.tw"])
+def test_new_sources_respect_robots_and_exact_hosts(host):
+    url = "https://" + host + "/article/123"
+    robots = "https://" + host + "/robots.txt"
+    result, session = run(url=url, routes={robots: FakeResponse(200, b"User-agent: *\nDisallow: /", "text/plain")})
+    assert result.failure_reason == FailureReason.ROBOTS_DISALLOWED
+    assert url not in session.urls
+    result, session = run(url="https://" + host + ".evil.example/article/123")
+    assert result.failure_reason == FailureReason.HTTP_ERROR
+    assert af.find_source(host + ".evil.example") is None

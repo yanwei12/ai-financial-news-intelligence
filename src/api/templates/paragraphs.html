@@ -4,7 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>標題照妖鏡｜標題符合內文嗎？</title>
+<<<<<<< HEAD
   <link rel="stylesheet" href="/static/paragraphs.css?v=4">
+=======
+  <link rel="stylesheet" href="/static/paragraphs.css?v=3">
+>>>>>>> bbabede88d1808de366dc16ee9cfea8ff3949d12
   <script src="/static/paragraphs.js?v=4" defer></script>
 </head>
 <body>
@@ -21,7 +25,7 @@
       <div id="url-fields">
         <label for="url-input">新聞網址</label>
         <input id="url-input" type="url" maxlength="2048" placeholder="https://tw.stock.yahoo.com/news/…">
-        <p class="hint">目前支援 Yahoo 奇摩新聞／股市（tw.news.yahoo.com、tw.stock.yahoo.com）。其他來源可直接貼上正文。</p>
+        <p class="hint">可貼上一般公開新聞網址，自動擷取標題與正文。以下網站另有專用解析：{% for source in sources %}{{ source.name }}（{{ source.domains | join("、") }}）{% if not loop.last %}、{% endif %}{% endfor %}。若網站需要登入、使用動態載入或無法擷取，請改貼上正文。</p>
       </div>
       <div id="text-fields" hidden>
         <label for="title">新聞標題</label>

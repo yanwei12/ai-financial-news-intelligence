@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from src.ingestion.article_sources import SOURCES
 from src.processing.cleaner import ParagraphMode, prepare_article
 
 router = APIRouter()
@@ -42,4 +43,4 @@ def prepare(request: PrepareArticleRequest):
 
 @router.get("/paragraphs", include_in_schema=False)
 def paragraph_preview(request: Request):
-    return templates.TemplateResponse(request=request, name="paragraphs.html", context={})
+    return templates.TemplateResponse(request=request, name="paragraphs.html", context={"sources": SOURCES})
