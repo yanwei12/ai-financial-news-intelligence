@@ -7,6 +7,9 @@ let prepared = null;
 let analysis = null;
 let fetched = null;
 let savedArticleId = null;
+let selectedHistory = null;
+let historyOffset = 0;
+let historyLoading = false;
 const labels = { supported: "相符", missing_conditions: "部分相符", contradicted: "不相符", insufficient: "證據不足" };
 const meanings = {
   supported: "正文支持標題的主要說法。",
@@ -17,6 +20,8 @@ const meanings = {
 
 function clearResult(clearArticle = true) {
   if (clearArticle) savedArticleId = null;
+  selectedHistory = null;
+  markHistory();
   revision += 1;
   prepared = null;
   analysis = null;
@@ -82,16 +87,52 @@ function showAnalysis(data) {
   const title = element("p", prepared.title); title.className = "analyzed-title";
   const reason = element("p", data.summary); reason.className = "verdict-reason";
   target.append(eyebrow, heading, meaning, title, element("h3", "判斷理由"), reason);
-  const evidenceDetails = document.createElement("details");
-  evidenceDetails.append(element("summary", "查看正文證據與逐項理由"));
-  for (const claim of data.claims) {
-    const card = document.createElement("article");
-    card.append(element("h3", claim.claim), element("p", `${labels[claim.verdict]}：${claim.explanation}`));
-    for (const evidence of claim.evidence) card.append(element("blockquote", evidence.text));
-    if (!claim.evidence.length) card.append(element("p", "正文中未找到足夠證據。"));
-    evidenceDetails.append(card);
+  const modern = data.claims.every(claim => claim.headline_meaning && claim.body_meaning);
+  if (!modern) {
+    const notice = element("p", "這是舊版分析，尚未產生三欄對照。可重新分析產生新版結果；會使用 API 額度，原紀錄仍會保留。");
+    notice.className = "legacy-notice"; target.append(notice);
+    const upgrade = element("button", "重新分析，產生主張對照"); upgrade.type = "button";
+    upgrade.addEventListener("click", () => { if (!busy) $("analysis-form").requestSubmit(); });
+    target.append(upgrade);
   }
-  target.append(evidenceDetails);
+  target.append(element("h3", modern ? "主張與證據對照" : "原版主張與理由"));
+  const note = element("p", "以下對照為 AI 整理；展開原文可核對引用及前後段落。引用存在不代表判斷必然正確。");
+  note.className = "hint"; target.append(note);
+  data.claims.forEach((claim, index) => {
+    const card = document.createElement("article"); card.className = "claim-card";
+    card.append(element("h3", `${index + 1}. ${claim.claim} · ${labels[claim.verdict] || "無法判定"}`));
+    if (claim.headline_meaning && claim.body_meaning) {
+      const grid = element("div", ""); grid.className = "claim-comparison";
+      for (const [label, text] of [
+        [claim.interpretation === "implied" ? "標題可能暗示" : "標題明確說", claim.headline_meaning],
+        ["正文實際說（AI 整理）", claim.body_meaning],
+        [claim.verdict === "supported" ? "如何相符" : claim.verdict === "insufficient" ? "缺少什麼證據" : "差在哪裡", claim.explanation],
+      ]) {
+        const column = element("div", ""); column.append(element("h4", label), element("p", text)); grid.append(column);
+      }
+      card.append(grid);
+    } else card.append(element("p", claim.explanation));
+    const details = document.createElement("details");
+    details.append(element("summary", "查看原文與上下文"));
+    const cited = new Set(claim.evidence.map(item => item.id));
+    const positions = new Set();
+    prepared.paragraphs.forEach((p, i) => {
+      if (cited.has(p.id)) for (let j = Math.max(0, i - 1); j <= Math.min(prepared.paragraphs.length - 1, i + 1); j++) positions.add(j);
+    });
+    if (!cited.size) details.append(element("p", "正文中未找到足夠引用證據，可展開下方完整原文自行核對。"));
+    let previous = -1;
+    for (const i of [...positions].sort((a, b) => a - b)) {
+      if (previous >= 0 && i > previous + 1) details.append(element("p", "⋯ 中間段落省略，可於完整原文查看 ⋯"));
+      const paragraph = prepared.paragraphs[i];
+      const block = element("div", ""); block.className = cited.has(paragraph.id) ? "context-cited" : "context-neighbor";
+      block.append(element("strong", cited.has(paragraph.id) ? "引用原文" : "相鄰段落（上下文）"), element("blockquote", paragraph.text));
+      details.append(block); previous = i;
+    }
+    card.append(details);
+    const external = element("div", ""); external.className = "external-placeholder";
+    external.append(element("strong", "外部查證 · 尚未啟用"), element("p", "此處預留外部來源、發布日期與支持／衝突證據。目前只比對本文，尚未搜尋或驗證外部資料。"));
+    card.append(external); target.append(card);
+  });
   $("analysis-meta").textContent = `${data.model_version || data.model} · ${data.cached ? "已保存結果" : "本次分析"} · ${data.analyzed_at}`;
   $("paragraph-note").textContent = `引用定位共 ${prepared.paragraphs.length} 段。`;
   $("paragraph-list").replaceChildren();
@@ -128,6 +169,7 @@ $("analysis-form").addEventListener("submit", async event => {
     const data = await request("/headline/analyze", {title:prepared.title, content:prepared.original_text, paragraph_mode:prepared.paragraph_mode, document_id:prepared.document_id, article_id:savedArticleId}, 90000);
     if (data.document_id !== prepared.document_id) throw new Error("文章版本不一致，請重新分析。");
     analysis = data; showAnalysis(data);
+    loadHistory(true);
     $("status").textContent = "分析完成。展開證據可核對原文。";
   } catch (failure) {
     showError(failure.name === "AbortError" ? "連線逾時，請稍後再試；分析可能仍在處理中。" : failure.message);
@@ -157,3 +199,68 @@ async function loadSavedArticle() {
   finally { busy = false; $("input-fields").disabled = false; }
 }
 loadSavedArticle();
+
+
+function formatHistoryTime(value) {
+  const date = new Date(value);
+  return value && !Number.isNaN(date.getTime()) ? date.toLocaleString("zh-TW", {hour12: false}) : "時間未記錄";
+}
+function markHistory() {
+  for (const button of $("history-list").querySelectorAll("button")) {
+    if (button.dataset.id === selectedHistory) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
+  }
+}
+async function loadHistory(reset = false) {
+  if (historyLoading) return;
+  historyLoading = true;
+  $("history-more").disabled = true;
+  $("history-retry").hidden = true;
+  $("history-status").textContent = "正在載入紀錄…";
+  try {
+    const data = await request(`/headline/history?offset=${reset ? 0 : historyOffset}&limit=20`);
+    if (reset) $("history-list").replaceChildren();
+    for (const item of data.items) {
+      const button = element("button", ""); button.type = "button"; button.className = "history-item";
+      button.dataset.id = item.id;
+      const title = element("strong", item.title);
+      const badge = element("span", labels[item.verdict] || "未分類"); badge.className = "history-verdict";
+      badge.dataset.verdict = item.verdict;
+      const time = element("time", formatHistoryTime(item.analyzed_at));
+      button.append(title, badge, time);
+      button.addEventListener("click", () => openHistory(item.id));
+      $("history-list").append(button);
+    }
+    historyOffset = data.next_offset;
+    $("history-more").hidden = historyOffset === null;
+    $("history-status").textContent = $("history-list").children.length ? "" : "還沒有分析紀錄。完成第一次分析後會自動保存。";
+    markHistory();
+  } catch (_) {
+    $("history-status").textContent = "無法載入紀錄，請重試。";
+    $("history-retry").hidden = false;
+  } finally { historyLoading = false; $("history-more").disabled = false; }
+}
+async function openHistory(id) {
+  if (busy) return;
+  busy = true; $("input-fields").disabled = true;
+  $("status").textContent = "正在讀取已保存分析…";
+  try {
+    const data = await request(`/headline/history/${encodeURIComponent(id)}`);
+    if (!data.prepared?.original_text || !Array.isArray(data.prepared.paragraphs)) throw new Error("這筆舊紀錄缺少原文快照，無法完整還原。");
+    clearResult(); fetched = null;
+    prepared = data.prepared; analysis = data; selectedHistory = id;
+    $("title").value = prepared.title; $("content").value = prepared.original_text;
+    $("url-input").value = ""; $("paragraph-mode").value = prepared.paragraph_mode;
+    setMode("text"); markHistory(); showAnalysis(data);
+    $("status").textContent = `已載入 ${formatHistoryTime(data.analyzed_at)} 的分析紀錄，未呼叫 AI。修改後可另行分析。`;
+  } catch (error) { showError(error.message); $("status").textContent = "紀錄讀取失敗，原有內容已保留。"; }
+  finally { busy = false; $("input-fields").disabled = false; }
+}
+$("new-analysis").addEventListener("click", () => {
+  if (busy) return;
+  clearResult(); fetched = null; $("analysis-form").reset(); setMode("url");
+  $("url-input").focus(); $("analysis-form").scrollIntoView({block: "start"});
+});
+$("history-more").addEventListener("click", () => loadHistory());
+$("history-retry").addEventListener("click", () => loadHistory(true));
+loadHistory(true);

@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>標題照妖鏡｜標題符合內文嗎？</title>
-  <link rel="stylesheet" href="/static/paragraphs.css?v=5">
-  <script src="/static/paragraphs.js?v=5" defer></script>
+  <link rel="stylesheet" href="/static/paragraphs.css?v=8">
+  <script src="/static/paragraphs.js?v=8" defer></script>
 </head>
 <body>
+<div class="workspace-layout">
 <main>
   <header><p class="eyebrow">標題照妖鏡</p><h1>標題符合內文嗎？</h1>
     <p>貼上一則新聞，直接看符合程度、原因與正文證據。</p>
@@ -21,7 +22,7 @@
       <div id="url-fields">
         <label for="url-input">新聞網址</label>
         <input id="url-input" type="url" maxlength="2048" placeholder="https://tw.stock.yahoo.com/news/…">
-        <p class="hint">可貼上一般公開新聞網址，自動擷取標題與正文。以下網站另有專用解析：{% for source in sources %}{{ source.name }}（{{ source.domains | join("、") }}）{% if not loop.last %}、{% endif %}{% endfor %}。若網站需要登入、使用動態載入或無法擷取，請改貼上正文。</p>
+        <p class="hint">可貼上一般公開新聞網址，自動擷取標題與正文。若網站需要登入、使用動態載入或無法擷取，請改貼上正文。</p>
       </div>
       <div id="text-fields" hidden>
         <label for="title">新聞標題</label>
@@ -49,5 +50,15 @@
     <details><summary>輸入原文</summary><pre id="original-text"></pre></details>
   </details>
 </main>
+<aside class="history-sidebar" aria-label="分析紀錄">
+  <h2>分析紀錄</h2>
+  <p class="hint">已保存的結果，點選即可重看。</p>
+  <button type="button" id="new-analysis">＋ 新增分析</button>
+  <p id="history-status" role="status" aria-live="polite"></p>
+  <nav id="history-list" aria-label="已保存分析"></nav>
+  <button type="button" id="history-more" class="secondary" hidden>載入更多</button>
+  <button type="button" id="history-retry" class="secondary" hidden>重新載入紀錄</button>
+</aside>
+</div>
 </body>
 </html>

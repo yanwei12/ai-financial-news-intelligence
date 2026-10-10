@@ -3,9 +3,10 @@ import hashlib
 import json
 from threading import Lock
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from pydantic import Field
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from src.ai import headline
 from src.api.article_routes import get_session
@@ -53,3 +54,27 @@ def analyze_headline(payload: AnalyzeHeadlineRequest, session: Session = Depends
         return {**result, "cached": False}
     finally:
         _analysis_lock.release()
+
+
+@router.get("/headline/history")
+def analysis_history(offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=50),
+                     session: Session = Depends(get_session)):
+    rows = session.scalars(select(HeadlineAnalysis).order_by(
+        HeadlineAnalysis.created_at.desc(), HeadlineAnalysis.cache_key.desc()
+    ).offset(offset).limit(limit + 1)).all()
+    items = []
+    for row in rows[:limit]:
+        result = json.loads(row.result_json)
+        items.append({"id": row.cache_key, "title": result.get("prepared", {}).get("title", "未命名新聞"),
+                      "verdict": result.get("verdict"), "analyzed_at": result.get("analyzed_at"),
+                      "model": result.get("model_version") or result.get("model")})
+    return {"items": items, "next_offset": offset + limit if len(rows) > limit else None}
+
+
+@router.get("/headline/history/{analysis_id}")
+def analysis_snapshot(analysis_id: str = Path(pattern=r"^[a-f0-9]{64}$"),
+                      session: Session = Depends(get_session)):
+    row = session.get(HeadlineAnalysis, analysis_id)
+    if row is None:
+        raise HTTPException(404, "找不到這筆分析紀錄。")
+    return {**json.loads(row.result_json), "cached": True, "analysis_id": row.cache_key}

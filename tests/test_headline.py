@@ -19,6 +19,8 @@ from src.processing.cleaner import prepare_article
 def output(verdict="missing_conditions", ids=None):
     return json.dumps({"summary": "標題省略評估條件。", "claims": [{
         "claim": "公司全面漲價", "verdict": verdict,
+        "headline_meaning": "公司已全面決定漲價", "interpretation": "explicit",
+        "body_meaning": "公司只在評估北美部分產品，尚未決定。",
         "explanation": "內文只說正在評估北美部分產品。",
         "gap_type": {"missing_conditions": "scope", "supported": "none", "contradicted": "contradiction", "insufficient": "insufficient"}[verdict],
         "evidence_ids": ["P001"] if ids is None else ids,
@@ -182,3 +184,109 @@ def test_truncated_output_explains_usage(article, monkeypatch):
         headline.call_gemini(article, "SECRET", "gemini-test")
     assert error.value.code == "output_truncated"
     assert "token" in error.value.message
+
+
+def test_history_restores_snapshot_without_model_call(client, monkeypatch, article):
+    model = Mock(return_value=(output(), {}, "gemini-test"))
+    monkeypatch.setattr(headline, "call_gemini", model)
+    assert client.get("/headline/history").json() == {"items": [], "next_offset": None}
+    first = client.post("/headline/analyze", json=payload(article)).json()
+    client.post("/headline/analyze", json=payload(article))
+    items = client.get("/headline/history").json()["items"]
+    assert len(items) == 1
+    assert items[0]["title"] == article.title
+    monkeypatch.setattr(headline, "settings", Mock(side_effect=AssertionError("History must not need API credentials")))
+    restored = client.get("/headline/history/" + items[0]["id"]).json()
+    assert restored["prepared"] == first["prepared"]
+    assert restored["claims"] == first["claims"]
+    assert restored["cached"] is True
+    assert model.call_count == 1
+    assert client.get("/headline/history/" + "0" * 64).status_code == 404
+    assert client.get("/headline/history/invalid").status_code == 422
+    assert client.get("/headline/history?limit=500").status_code == 422
+
+
+def test_history_pagination(client, monkeypatch, article):
+    monkeypatch.setattr(headline, "call_gemini", Mock(return_value=(output(), {}, "gemini-test")))
+    for title in ("第一篇", "第二篇", "第三篇"):
+        item = prepare_article(title, article.original_text)
+        assert client.post("/headline/analyze", json=payload(item)).status_code == 200
+    page = client.get("/headline/history?limit=2").json()
+    assert [i["title"] for i in page["items"]] == ["第三篇", "第二篇"]
+    assert page["next_offset"] == 2
+    last = client.get("/headline/history?limit=2&offset=2").json()
+    assert last["items"][0]["title"] == "第一篇"
+    assert last["next_offset"] is None
+
+
+@pytest.mark.parametrize("field", ["headline_meaning", "body_meaning", "interpretation"])
+def test_comparison_requires_fields(article, field):
+    data = json.loads(output())
+    del data["claims"][0][field]
+    with pytest.raises(headline.AnalysisError):
+        headline.validate_result(json.dumps(data), article)
+
+
+def test_context_from_original_and_deduplicated():
+    article = prepare_article("有人認為價格可能調整", """前文
+
+有人認為可能調整
+
+尚未定案
+
+後文
+
+不相鄰內容""")
+    result = headline.validate_result(output(ids=["P002", "P003"]), article)
+    claim = result["claims"][0]
+    assert [p["id"] for p in claim["context"]] == ["P001", "P002", "P003", "P004"]
+    assert [p["cited"] for p in claim["context"]] == [False, True, True, False]
+    assert [p["text"] for p in claim["context"]] == [p.text for p in article.paragraphs[:4]]
+    assert claim["external_verification"] == {"status": "not_enabled", "sources": []}
+
+
+def test_insufficient_context_and_mixed_verdicts(article):
+    empty = headline.validate_result(output("insufficient", []), article)
+    assert empty["claims"][0]["context"] == []
+    data = json.loads(output("supported"))
+    data["claims"].append(json.loads(output("contradicted"))["claims"][0])
+    assert headline.validate_result(json.dumps(data), article)["verdict"] == "contradicted"
+
+
+def test_legacy_history_retained_and_new_prompt_separates_cache(client, monkeypatch, article):
+    model = Mock(return_value=(output(), {}, "gemini-test"))
+    monkeypatch.setattr(headline, "call_gemini", model)
+    current = headline.PROMPT_VERSION
+    monkeypatch.setattr(headline, "PROMPT_VERSION", "headline-paragraphs-v1")
+    client.post("/headline/analyze", json=payload(article))
+    old_id = client.get("/headline/history").json()["items"][0]["id"]
+    from src.database.models import HeadlineAnalysis
+    with next(client.app.dependency_overrides[get_session]()) as session:
+        row = session.get(HeadlineAnalysis, old_id)
+        data = json.loads(row.result_json)
+        for claim in data["claims"]:
+            for key in ("headline_meaning", "body_meaning", "interpretation", "context", "external_verification"):
+                claim.pop(key, None)
+        row.result_json = json.dumps(data)
+        session.commit()
+    monkeypatch.setattr(headline, "PROMPT_VERSION", current)
+    new = client.post("/headline/analyze", json=payload(article)).json()
+    assert new["cached"] is False
+    assert model.call_count == 2
+    assert len(client.get("/headline/history").json()["items"]) == 2
+    old = client.get("/headline/history/" + old_id).json()
+    assert "headline_meaning" not in old["claims"][0]
+    assert old["prepared"] == new["prepared"]
+
+
+def test_compact_provider_schema_keeps_required_fields_and_local_limits(article):
+    schema = headline.provider_schema()
+    claim = schema["$defs"]["Claim"]
+    assert {"headline_meaning", "body_meaning", "interpretation"} <= set(claim["required"])
+    assert claim["properties"]["interpretation"]["enum"] == ["explicit", "implied"]
+    assert "maxLength" not in claim["properties"]["body_meaning"]
+    for value in ("", "x" * 2001):
+        data = json.loads(output())
+        data["claims"][0]["body_meaning"] = value
+        with pytest.raises(headline.AnalysisError):
+            headline.validate_result(json.dumps(data), article)

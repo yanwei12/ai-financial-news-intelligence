@@ -1,23 +1,5 @@
 """系統套件
 
-python -c "import sqlalchemy; print('SQLAlchemy', sqlalchemy.__version__)"
-python -c "import transformers; print('Transformers', transformers.__version__)"
-python -c "import torch; print('Torch', torch.__version__)"
-python -c "import fastapi; print('FastAPI', fastapi.__version__)"
-python -c "import uvicorn; print('Uvicorn', uvicorn.__version__)"
-python -c "import jinja2; print('Jinja2', jinja2.__version__)"
-python -c "import pydantic; print('Pydantic', pydantic.__version__)"
-python -c "import feedparser; print('feedparser', feedparser.__version__)"
-
-python -m pip install sqlalchemy
-python -m pip install transformers
-python -m pip install torch
-python -m pip install fastapi
-python -m pip install uvicorn
-python -m pip install jinja2
-python -m pip install pydantic
-python -m pip install feedparser 
-
 source .venv/bin/activate 虛擬環境
 pip list
 

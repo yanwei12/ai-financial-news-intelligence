@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from src.processing.cleaner import PreparedArticle, resolve_evidence
 
-PROMPT_VERSION = "headline-paragraphs-v1"
+PROMPT_VERSION = "headline-comparison-v2"
 DEFAULT_MODEL = "gemini-3.8-flash"
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 logger = logging.getLogger(__name__)
@@ -24,6 +24,9 @@ Verdict = Literal["supported", "missing_conditions", "contradicted", "insufficie
 class Claim(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     claim: str = Field(min_length=1, max_length=2000)
+    headline_meaning: str = Field(min_length=1, max_length=2000)
+    interpretation: Literal["explicit", "implied"]
+    body_meaning: str = Field(min_length=1, max_length=2000)
     verdict: Verdict
     explanation: str = Field(min_length=1, max_length=2000)
     gap_type: Literal["none", "certainty", "scope", "contradiction", "insufficient"]
@@ -58,8 +61,25 @@ contradicted=同一對象與期間有明確相反陳述；insufficient=沒有足
 確定漲價 vs 正在評估屬 certainty；全面 vs 僅部分市場屬 scope。不要把沒有提到當成矛盾。
 gap_type：supported 必須為 none；missing_conditions 為 certainty 或 scope；contradicted 為 contradiction；insufficient 為 insufficient。
 evidence_ids 只能使用輸入段落的 ID。除了資訊不足可無引用，其餘判斷必須引用證據。標題不是正文證據。
+每項主張另填 headline_meaning（標題明示或合理暗示的意思）、interpretation（explicit 明示／implied 暗示）、body_meaning（正文實際說法）。
+不得替標題添加沒有根據的暗示。保留主體、說話者、時間、範圍、條件與不確定性；「某人認為」不能改寫為客觀事實。
+explanation 專門說明兩者差異或支持關係：supported 說明如何支持，不硬找落差；insufficient 說明缺少什麼證據，不補寫事實。
+body_meaning 是有依據的摘要，不是假裝逐字引用。多個主張分別判定，不能因一項相符就概括全部。
+不要生成外部來源、連結或外部查證結果，目前完全未做外部查證。
 不要生成引用原文欄位；程式會自行取回原段落。summary 概括所有主張，不能超出證據。不得輸出誤導百分比。
 """
+
+
+def provider_schema() -> dict:
+    """Keep provider constraints compact; enforce full limits locally afterwards."""
+    def compact(value):
+        if isinstance(value, dict):
+            return {key: compact(item) for key, item in value.items()
+                    if key not in {"minLength", "maxLength", "minItems", "maxItems", "additionalProperties", "title"}}
+        if isinstance(value, list):
+            return [compact(item) for item in value]
+        return value
+    return compact(ModelResult.model_json_schema())
 
 
 def call_gemini(article: PreparedArticle, key: str, model: str) -> tuple[str, dict, str]:
@@ -73,7 +93,7 @@ def call_gemini(article: PreparedArticle, key: str, model: str) -> tuple[str, di
         }, ensure_ascii=False)}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
-            "responseJsonSchema": ModelResult.model_json_schema(),
+            "responseJsonSchema": provider_schema(),
             "maxOutputTokens": 8192,
         },
     }
@@ -131,7 +151,13 @@ def validate_result(raw: str, article: PreparedArticle) -> dict:
             if claim.verdict != "insufficient" and not claim.evidence_ids:
                 raise ValueError("missing evidence")
             evidence = resolve_evidence(article, article.document_id, claim.evidence_ids)
-            claims.append({**claim.model_dump(), "evidence": [{"id": p.id, "text": p.text} for p in evidence]})
+            ids = {p.id for p in evidence}
+            indices = {j for i, p in enumerate(article.paragraphs) if p.id in ids
+                       for j in range(max(0, i - 1), min(len(article.paragraphs), i + 2))}
+            context = [{"id": article.paragraphs[i].id, "text": article.paragraphs[i].text,
+                        "cited": article.paragraphs[i].id in ids} for i in sorted(indices)]
+            claims.append({**claim.model_dump(), "evidence": [{"id": p.id, "text": p.text} for p in evidence],
+                           "context": context, "external_verification": {"status": "not_enabled", "sources": []}})
     except (ValidationError, ValueError):
         raise AnalysisError("invalid_output", "模型回傳格式或引用驗證失敗，未產生可信的分析結果。") from None
     verdicts = {c.verdict for c in parsed.claims}

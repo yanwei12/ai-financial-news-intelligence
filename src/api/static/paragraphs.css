@@ -55,3 +55,35 @@ blockquote { border-left: 3px solid #a4b8aa; margin: 12px 0; padding: 8px 16px; 
 .secondary-tools { margin-top: 40px; padding-top: 20px; border-top: 1px solid #d6ded7; font-size: .9rem; }
 .secondary-tools a { color: #52635c; }
 @media (max-width: 600px) { #analysis-result { padding: 20px 16px; } }
+
+.workspace-layout { max-width: 1380px; margin: auto; display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 28px; padding: 28px 24px; align-items: start; }
+.workspace-layout main { width: 100%; padding: 0 0 60px; min-width: 0; }
+.history-sidebar { position: sticky; top: 24px; padding: 20px; background: white; border: 1px solid #d6ded7; border-radius: 12px; max-height: calc(100vh - 48px); overflow-y: auto; }
+.history-sidebar h2 { font-size: 1.2rem; margin-top: 0; }
+.history-sidebar > button { width: 100%; }
+#history-list { display: grid; gap: 10px; margin: 16px 0; }
+.history-item { display: block; width: 100%; background: #fff; color: #21332e; text-align: left; padding: 12px; border-color: #d6ded7; overflow-wrap: anywhere; }
+.history-item:hover, .history-item[aria-current="true"] { background: #edf5ef; border-color: #28624e; }
+.history-item strong { display: block; line-height: 1.5; font-size: .93rem; }
+.history-item time { display: block; color: #52635c; font-size: .78rem; margin-top: 6px; }
+.history-verdict { display: inline-block; font-size: .8rem; margin-top: 8px; color: #52635c; }
+.history-verdict[data-verdict="supported"] { color: #28624e; }
+.history-verdict[data-verdict="missing_conditions"] { color: #815d12; }
+.history-verdict[data-verdict="contradicted"] { color: #982b24; }
+#history-status { font-size: .9rem; }
+@media (max-width: 800px) {
+ .workspace-layout { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 20px; }
+ .history-sidebar { position: static; max-height: 260px; }
+}
+
+.claim-comparison { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.claim-comparison > div { background: #f3f5f1; padding: 16px; border-radius: 8px; overflow-wrap: anywhere; }
+.claim-comparison h4 { margin: 0 0 8px; font-size: .92rem; color: #42685c; }
+.claim-comparison p { margin: 0; }
+.context-cited, .context-neighbor { padding: 12px; margin-top: 12px; border-radius: 8px; }
+.context-cited { background: #edf5ef; border: 1px solid #93b09f; }
+.context-neighbor { background: #f7f7f5; color: #52635c; }
+.external-placeholder { margin-top: 16px; border: 1px dashed #a4b8aa; padding: 14px; border-radius: 8px; color: #52635c; font-size: .9rem; }
+.external-placeholder p { margin: 4px 0 0; }
+.legacy-notice { padding: 14px; background: #fff7df; border-radius: 8px; }
+@media (max-width: 1100px) { .claim-comparison { grid-template-columns: minmax(0, 1fr); } }
