@@ -11,6 +11,7 @@ from src.api.schemas import NewsDetail, NewsListItem
 from src.api.article_routes import router as article_router
 from src.api.paragraphs import router as paragraph_router
 from src.api.headline import router as headline_router
+from src.api.external_verification import router as external_router
 from src.database.database import create_tables, engine
 from src.database.models import News
 
@@ -31,6 +32,7 @@ app = FastAPI(
 app.include_router(article_router)
 app.include_router(paragraph_router)
 app.include_router(headline_router)
+app.include_router(external_router)
 
 _API_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=str(_API_DIR / "static")), name="static")

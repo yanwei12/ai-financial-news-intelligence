@@ -157,3 +157,12 @@ class Article(Base):
 
     def __repr__(self) -> str:
         return f"<Article id={self.id} title={self.title!r} origin={self.input_origin}>"
+
+class ExternalVerification(Base):
+    """Latest external search snapshot per analysis, claim, model and prompt version."""
+    __tablename__ = "external_verifications"
+    cache_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    analysis_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    claim_index: Mapped[int] = mapped_column(nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=_utcnow)

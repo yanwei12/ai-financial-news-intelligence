@@ -35,30 +35,32 @@ python -m pytest tests -q
 
 測試使用模擬 Gemini，不耗用 API 額度。
 
-### 分析端防護與紀錄
+## 外部取證（Google Search + Gemini）
 
-| 項目 | 行為 | 設定（環境變數） |
-| --- | --- | --- |
-| 每日分析上限 | 每個 UTC 日最多 N 次**新的**模型呼叫，超過回 429 `daily_limit`；已快取的結果不受影響。失敗的呼叫不計數（但可能已產生費用）。 | `HEADLINE_DAILY_LIMIT`，預設 50 |
-| 請求頻率限制 | 每個來源位址每分鐘：`/articles/preview` 20 次、`/articles` 60 次、`/headline/analyze` 6 次；超過回 429 `rate_limited` 與 `Retry-After`。記憶體內、單一程序有效。 | `RATE_LIMIT_PREVIEW`、`RATE_LIMIT_CONFIRM`、`RATE_LIMIT_ANALYZE`；`0` 表示關閉 |
-| 代理後的來源位址 | 預設用連線位址。只有放在自己控制的代理後面才可設為 `1`，否則 `X-Forwarded-For` 可被偽造。 | `TRUST_PROXY_HEADERS=1` |
-| 說明不引入文章外資訊 | 模型的主張、說明、摘要裡的**數字與英文名稱**必須出現在標題或內文，否則整筆結果被拒絕（`ungrounded_output`，不快取）。只能擋數字與名稱，擋不了「只用文章裡的字卻下錯結論」。提示詞版本 `headline-paragraphs-v2`。 | — |
+先完成標題比對，再按每項主張下的「搜尋外部證據」。也可開啟舊的分析紀錄再查證。
+每次會把該篇新聞與待查主張交給 Gemini，啟用 Google Search；模型與搜尋可能各自計費。
+原本的標題／正文相符程度保持不變，外部判斷另列「支持、衝突、部分支持／證據互異、證據不足」。
 
-**關聯已確認文章**：以 `/paragraphs?article_id=ID` 載入已儲存文章後分析時，請求會帶 `article_id`。伺服器會確認送出的文字與那篇已存文章完全相同才建立關聯（否則 404 或 409），存在新表 `article_analyses`（不需要遷移舊表）。查詢某篇文章的所有分析：`GET /articles/{id}/analyses`。在分析頁手動修改文字後，關聯會自動取消。
+- 來源 URL 只接受 Gemini `groundingMetadata.groundingChunks`，證據摘要必須有 `groundingSupports` 對應，不採用模型自行撰寫的網址。
+- 缺少實際搜尋詞或可引用證據時顯示「外部證據不足」；來源列表本身不算已查證。
+- 引用旁可開啟來源；摘要是 AI 整理，並非來源逐字引文。搜尋引用不保證推論正確。
+- 搜尋介面未提供可靠的來源發布日期，因此標為未知，不將查證時間冒充發布時間。模型說明中的日期仍需回到來源核對。
+- 保存查證時間、模型、提示詞版本、搜尋詞、來源、證據及 token 用量。重新讀取歷史紀錄或下載 JSON 都會包含外部結果。
+- 相同分析／主張／模型／提示詞版本 24 小時內重用快取；到期後再按按鈕才重新搜尋。歷史畫面始終顯示上次查證時間，不會自動產生費用。
+- 搜尋失敗可重試，原分析與先前成功取證保留。單一程序同時只允許一個取證請求，忙碌時回 429。
+- 只新增 `external_verifications` 表，不修改舊分析表結構。啟動時自動建立。
 
-**用量與耗時**：每筆分析記錄 `latency_ms` 與供應商回報的 token 用量。
+沿用 `.env` 中的 `GEMINI_API_KEY` 與 `GEMINI_MODEL`；可另設支援 Google Search 的 `GEMINI_SEARCH_MODEL`。
+搜尋使用 REST `generateContent` 的 `google_search` 工具，不需要額外 SDK。
 
-```bash
-python -m scripts.usage_report
-python -m scripts.usage_report --input-price 0.30 --output-price 2.50
-```
+API：`POST /headline/history/{analysis_id}/claims/{claim_index}/verify`（主張索引從 0 起）。
+`/headline/analyze` 與 `/headline/history/{analysis_id}` 都會回傳 `analysis_id`。
+取證端點的輸入僅為已儲存的分析 ID 與主張索引，避免送入不同文章卻附加到舊分析。
 
-價格（每百萬 token）由你自己提供，程式不內建任何價格；只讀資料庫，不呼叫模型。
+Google 搜尋建議以受限 sandbox iframe 呈現；來源與摘要以文字節點呈現，不執行模型輸出的 HTML。
+此原型沿用現有單機架構，沒有使用者登入與跨程序限流，公開部署需另配置。
 
-模型只比對本文，不做外部事實查核；引用存在不代表語意判斷正確，尚待人工評估。程式依據 [Google 結構化輸出文件](https://ai.google.dev/gemini-api/docs/generate-content/structured-output) 使用 REST JSON Schema，並於本機再次驗證。
-
-測試：`python -m pytest tests -q`（使用模擬 Gemini，不耗用額度）。
-
+參考：[Google Search grounding 文件](https://ai.google.dev/gemini-api/docs/generate-content/google-search)。
 
 ## 通用新聞網址擷取
 

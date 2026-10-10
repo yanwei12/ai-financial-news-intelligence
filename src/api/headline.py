@@ -8,6 +8,7 @@ from pydantic import Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
+from src.api.external_verification import attach_verifications
 from src.ai import headline
 from src.api.article_routes import get_session
 from src.api.paragraphs import PrepareArticleRequest
@@ -43,7 +44,7 @@ def analyze_headline(payload: AnalyzeHeadlineRequest, session: Session = Depends
     try:
         cached = session.get(HeadlineAnalysis, cache_key)
         if cached:
-            return {**json.loads(cached.result_json), "cached": True}
+            return {**attach_verifications(session, cache_key, json.loads(cached.result_json)), "cached": True}
         try:
             result = headline.analyze(article, key, model)
         except headline.AnalysisError as exc:
@@ -51,7 +52,7 @@ def analyze_headline(payload: AnalyzeHeadlineRequest, session: Session = Depends
         session.add(HeadlineAnalysis(cache_key=cache_key, document_id=article.document_id,
                                      result_json=json.dumps(result, ensure_ascii=False)))
         session.commit()
-        return {**result, "cached": False}
+        return {**result, "cached": False, "analysis_id": cache_key}
     finally:
         _analysis_lock.release()
 
@@ -77,4 +78,4 @@ def analysis_snapshot(analysis_id: str = Path(pattern=r"^[a-f0-9]{64}$"),
     row = session.get(HeadlineAnalysis, analysis_id)
     if row is None:
         raise HTTPException(404, "找不到這筆分析紀錄。")
-    return {**json.loads(row.result_json), "cached": True, "analysis_id": row.cache_key}
+    return {**attach_verifications(session, row.cache_key, json.loads(row.result_json)), "cached": True}

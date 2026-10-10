@@ -78,6 +78,68 @@ function paragraphMode(body) {
   return /\n\s*\n/.test(body.replace(/\r\n?/g, "\n")) ? "blank_lines" : "line_breaks";
 }
 function element(tag, text) { const node = document.createElement(tag); node.textContent = text; return node; }
+const externalLabels = {supported: "外部資料支持", contradicted: "外部資料衝突", mixed: "部分支持／證據互異", insufficient: "外部證據不足"};
+function renderExternal(target, claim, index, data) {
+  target.replaceChildren();
+  const result = claim.external_verification;
+  const completed = result && ["completed", "no_evidence"].includes(result.status);
+  target.append(element("h4", `外部取證 · ${completed ? externalLabels[result.verdict] || "無法判定" : "尚未搜尋"}`));
+  if (completed) {
+    target.append(element("p", `查證時間：${formatHistoryTime(result.checked_at)} · ${result.model_version || result.model}`));
+    target.append(element("p", "以下是 AI 依搜尋資料整理的證據摘要，並非來源逐字引文。來源發布日期未由搜尋介面提供，請開啟來源核對；查證時間不代表新聞發布時間。"));
+    for (const item of result.evidence || []) {
+      const paragraph = element("p", item.text);
+      for (const id of item.source_ids) {
+        const source = result.sources.find(s => s.id === id);
+        if (!source) continue;
+        const link = element("a", ` [${id + 1}] ${source.title}`);
+        try {
+          const url = new URL(source.url);
+          if (url.protocol !== "https:" || url.username || url.password) continue;
+          link.href = url.href;
+        } catch (_) { continue; }
+        link.target = "_blank"; link.rel = "noopener noreferrer"; paragraph.append(link);
+      }
+      target.append(paragraph);
+    }
+    const report = element("details", "");
+    report.append(element("summary", "查看完整 AI 取證說明與搜尋詞"));
+    const text = element("p", result.report); text.className = "external-report";
+    report.append(text, element("p", `搜尋詞：${(result.search_queries || []).join("、") || "未提供"}`));
+    target.append(report);
+    if (result.search_entry_point) {
+      const frame = document.createElement("iframe");
+      frame.title = "Google 搜尋建議"; frame.className = "search-suggestions";
+      frame.setAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
+      frame.referrerPolicy = "no-referrer";
+      // Isolated provider widget: never allow scripts, same-origin access, forms or top navigation.
+      frame.srcdoc = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https:; base-uri 'none'; form-action 'none'"><base target="_blank">` + result.search_entry_point;
+      target.append(frame);
+    }
+  } else target.append(element("p", "搜尋其他公開資料，檢查這項主張的支持或衝突證據。會將新聞與主張傳送至 Google Gemini，並可能產生模型與搜尋費用。"));
+  const button = element("button", completed ? "再次取證（24 小時內使用快取）" : "搜尋外部證據");
+  button.type = "button"; button.className = "secondary";
+  button.disabled = !data.analysis_id;
+  const status = element("p", ""); status.setAttribute("role", "status");
+  button.addEventListener("click", async () => {
+    if (busy) { status.textContent = "請等待目前工作完成後再試。"; return; }
+    busy = true; button.disabled = true; $("input-fields").disabled = true;
+    const currentRevision = revision;
+    status.textContent = "正在搜尋外部來源並整理證據…";
+    try {
+      const verified = await request(`/headline/history/${encodeURIComponent(data.analysis_id)}/claims/${index}/verify`, {}, 115000);
+      if (currentRevision !== revision || analysis !== data) return;
+      claim.external_verification = verified;
+      renderExternal(target, claim, index, data);
+    } catch (error) {
+      status.textContent = error.name === "AbortError" ? "外部搜尋逾時，原分析與先前取證仍保留。請稍後再試。" : error.message;
+    } finally {
+      busy = false; button.disabled = false; $("input-fields").disabled = false;
+    }
+  });
+  target.append(button, status);
+}
+
 function showAnalysis(data) {
   const target = $("analysis-result"); target.replaceChildren(); target.dataset.verdict = data.verdict;
   const eyebrow = element("p", "標題與內文相符程度"); eyebrow.className = "eyebrow";
@@ -130,7 +192,7 @@ function showAnalysis(data) {
     }
     card.append(details);
     const external = element("div", ""); external.className = "external-placeholder";
-    external.append(element("strong", "外部查證 · 尚未啟用"), element("p", "此處預留外部來源、發布日期與支持／衝突證據。目前只比對本文，尚未搜尋或驗證外部資料。"));
+    renderExternal(external, claim, index, data);
     card.append(external); target.append(card);
   });
   $("analysis-meta").textContent = `${data.model_version || data.model} · ${data.cached ? "已保存結果" : "本次分析"} · ${data.analyzed_at}`;
