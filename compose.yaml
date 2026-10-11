@@ -1,0 +1,16 @@
+name: news-mirror
+
+services:
+  web:
+    build: .
+    image: news-mirror:latest
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    env_file:
+      - .env
+    volumes:
+      - news-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  news-data:

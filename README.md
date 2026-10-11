@@ -1,72 +1,117 @@
 # 新聞照妖鏡
 
-貼上新聞網址或標題與內文，比對標題是否符合正文，顯示判斷理由與原文證據。
+**一個協助讀者看懂新聞標題、核對正文與外部證據的 AI 新聞分析平台。**
 
-## 啟動
+新聞標題有時會省略重要條件，或讓讀者產生與正文不同的理解。我們希望讓讀者不只看到 AI 的結論，也能直接查看判斷理由、原文段落與外部來源，自己核對新聞在說什麼。
 
-使用專案的 Python 虛擬環境執行：
+專案從財經新聞分析出發，目前也支援一般公開新聞。
 
-```powershell
+## 可以做什麼？
+
+- **比對標題與正文**：拆解標題中的主張，判斷是否相符、缺少條件、互相矛盾或證據不足。
+- **查看原文證據**：顯示引用段落與前後文，方便回到文章核對。
+- **搜尋外部證據**：透過 Gemini 與 Google Search 尋找公開資料，另列支持或衝突的證據與來源連結。
+- **保留分析紀錄**：重新查看過去的分析，或下載 JSON 結果。
+
+## 怎麼使用？
+
+1. 貼上新聞網址，或直接貼上標題與完整內文。
+2. 按「分析標題」，查看主張、判斷理由與正文證據。
+3. 想進一步核對時，按該項主張下的「搜尋外部證據」。
+
+標題符合正文，不代表新聞內容一定正確；外部取證也會獨立呈現結果。AI 的整理仍可能有誤，請搭配原文與來源閱讀。需要登入、付費或動態載入的新聞，可能需手動貼上正文。
+
+## 快速啟動：Docker
+
+先安裝並啟動 Docker Desktop（或 Docker Engine 與 Compose），在專案根目錄執行。
+
+### 1. 設定 API 金鑰
+
+第一次使用時複製設定範本；已有 `.env` 可直接編輯，不需覆蓋。
+
+```bash
+cp .env.example .env
+```
+
+在 `.env` 填入 Google Gemini API 金鑰：
+
+```dotenv
+GEMINI_API_KEY=你的金鑰
+GEMINI_MODEL=gemini-3.8-flash
+# 外部搜尋可選擇另一個支援 Google Search 的模型，未設定時沿用上面的模型。
+# GEMINI_SEARCH_MODEL=gemini-3.8-flash
+```
+
+分析會將輸入新聞傳送給 Google Gemini；外部取證還會使用 Google Search，可能產生 API 費用。請勿將 `.env` 提交至 GitHub。
+
+### 2. 建置並啟動
+
+```bash
+docker compose up -d --build
+```
+
+開啟 [新聞照妖鏡](http://localhost:8000/check)，API 文件位於 [Swagger UI](http://localhost:8000/docs)。
+
+```bash
+docker compose logs -f   # 查看執行紀錄
+docker compose down      # 停止服務，保留資料
+```
+
+預設只提供本機存取。若 8000 已被占用，可在 `.env` 加上 `APP_PORT=8001`，再以該連接埠開啟頁面。程式更新後，重新執行建置與啟動指令即可。
+
+只想打包映像檔：
+
+```bash
+docker build -t news-mirror:latest .
+```
+
+映像檔不包含 API 金鑰或本機資料庫；Compose 會在啟動時讀入 `.env`，並掛載資料儲存空間。
+
+## 本機開發
+
+使用 Python 3.11 以上版本：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 python -m uvicorn src.api.main:app --reload
 ```
 
-開啟 http://127.0.0.1:8000/check；首頁 `/` 與舊 `/dashboard` 網址會轉到 `/check`。
-在 `.env` 設定 `GEMINI_API_KEY`，可用 `GEMINI_MODEL` 指定模型。
-貼上網址後按「分析標題」；目前支援 Yahoo 奇摩新聞／股市、公視新聞（news.pts.org.tw）、自由時報新聞（news.ltn.com.tw）。自由時報的其他子網域尚未支援。其他來源可切換成貼上標題與內文。
-擷取不完整時會顯示提示，請補齊正文後再次分析。按分析會將文章傳送至 Google Gemini，可能使用 API 額度。
+Windows PowerShell 可用 `python -m venv .venv` 建立環境，再以 `.venv\Scripts\Activate.ps1` 啟用。API 金鑰同樣設定在 `.env`。
 
-## 功能與資料
+執行測試：
 
-- `/check`：網址輸入；`/paragraphs`：文字輸入。
-- `/articles/preview`：擷取文章；`/articles/prepare`：整理段落與引用位置。
-- `/headline/analyze`：比對標題與正文，保存成功的分析結果。
-- `/articles`：儲存確認的文章；`/articles/{id}`：讀取文章。
-- `/news`、`/news/{id}`：保留既有 RSS 新聞的唯讀查詢。
-- `/docs`：API 文件。
-
-舊情緒分析表單、圖表、`/analyze`、`/analytics/sentiment` 與本機模型批次分析已移除。
-既有 `data/news.db` 及歷史欄位保留，不刪除或重新分析舊資料。新聞照妖鏡不需要 torch 或 transformers。
-
-## 測試
-
-```powershell
+```bash
+python -m pip install -r requirements-dev.txt
 python -m pytest tests -q
 ```
 
 測試使用模擬 Gemini，不耗用 API 額度。
 
-## 外部取證（Google Search + Gemini）
+## 資料怎麼儲存？
 
-先完成標題比對，再按每項主張下的「搜尋外部證據」。也可開啟舊的分析紀錄再查證。
-每次會把該篇新聞與待查主張交給 Gemini，啟用 Google Search；模型與搜尋可能各自計費。
-原本的標題／正文相符程度保持不變，外部判斷另列「支持、衝突、部分支持／證據互異、證據不足」。
+使用 **SQLite + SQLAlchemy**，啟動時自動建立需要的資料表。
 
-- 來源 URL 只接受 Gemini `groundingMetadata.groundingChunks`，證據摘要必須有 `groundingSupports` 對應，不採用模型自行撰寫的網址。
-- 缺少實際搜尋詞或可引用證據時顯示「外部證據不足」；來源列表本身不算已查證。
-- 引用旁可開啟來源；摘要是 AI 整理，並非來源逐字引文。搜尋引用不保證推論正確。
-- 搜尋介面未提供可靠的來源發布日期，因此標為未知，不將查證時間冒充發布時間。模型說明中的日期仍需回到來源核對。
-- 保存查證時間、模型、提示詞版本、搜尋詞、來源、證據及 token 用量。重新讀取歷史紀錄或下載 JSON 都會包含外部結果。
-- 相同分析／主張／模型／提示詞版本 24 小時內重用快取；到期後再按按鈕才重新搜尋。歷史畫面始終顯示上次查證時間，不會自動產生費用。
-- 搜尋失敗可重試，原分析與先前成功取證保留。單一程序同時只允許一個取證請求，忙碌時回 429。
-- 只新增 `external_verifications` 表，不修改舊分析表結構。啟動時自動建立。
+| 資料表 | 儲存內容 |
+| --- | --- |
+| `headline_analyses` | 標題分析結果、輸入原文快照、引用段落、模型資訊與用量 |
+| `external_verifications` | 每項主張的外部取證結果、來源連結、搜尋詞、查證時間與用量 |
+| `articles` | 透過文章儲存 API 確認的文章與來源資訊 |
+| `news` | 早期 RSS 收集的新聞與歷史欄位 |
 
-沿用 `.env` 中的 `GEMINI_API_KEY` 與 `GEMINI_MODEL`；可另設支援 Google Search 的 `GEMINI_SEARCH_MODEL`。
-搜尋使用 REST `generateContent` 的 `google_search` 工具，不需要額外 SDK。
+目前主介面的分析紀錄主要寫入 `headline_analyses`，外部取證另存於 `external_verifications`。結果以 JSON 保存，方便還原當時的內容。
 
-API：`POST /headline/history/{analysis_id}/claims/{claim_index}/verify`（主張索引從 0 起）。
-`/headline/analyze` 與 `/headline/history/{analysis_id}` 都會回傳 `analysis_id`。
-取證端點的輸入僅為已儲存的分析 ID 與主張索引，避免送入不同文章卻附加到舊分析。
+- **本機開發**：資料庫放在專案的 `data/news.db`。
+- **Docker**：資料庫放在容器的 `/app/data/news.db`，由 Compose 的 `news-data` volume 持久保存；與本機開發資料庫分開。
+- **快取**：相同文章、模型與提示詞版本會重用標題分析；外部取證快取 24 小時，到期後需再按按鈕才重新搜尋。
 
-Google 搜尋建議以受限 sandbox iframe 呈現；來源與摘要以文字節點呈現，不執行模型輸出的 HTML。
-此原型沿用現有單機架構，沒有使用者登入與跨程序限流，公開部署需另配置。
+`docker compose down` 不會刪除資料；`docker compose down -v` 會刪除 volume 與其中的資料庫，請勿用於一般停止服務。
 
-參考：[Google Search grounding 文件](https://ai.google.dev/gemini-api/docs/generate-content/google-search)。
+## 技術架構
 
-## 通用新聞網址擷取
+前端使用 HTML、CSS 與 JavaScript，後端使用 FastAPI，透過 Gemini 進行分析、Google Search 進行外部取證。新聞正文由專用解析器及 Trafilatura 擷取。
 
-先執行 `python -m pip install -r requirements.txt` 安裝 Trafilatura。
-公開新聞網址不再限制來源清單；Yahoo、公視、自由時報保留專用解析，其餘使用通用正文解析。
-只讀取使用者提交的單篇 HTML，遵守 robots.txt。導覽、側欄與留言不納入正文。
-有付費標記的文章會拒絕；登入、驗證碼或 JavaScript 才載入正文的頁面可能需要手動貼文。
-通用解析仍可能不完整，請核對原文。每次連線固定到檢查過的公開 IP，轉址也會重新檢查。
-批次評估工具的來源清單限制維持不變。
+主要程式位於 `src/api`（網頁與 API）、`src/ai`（AI 分析）、`src/ingestion`（新聞擷取）、`src/processing`（文字整理）與 `src/database`（資料儲存）。
+
+目前適合本機研究與展示，尚未提供使用者登入或多人資料隔離。

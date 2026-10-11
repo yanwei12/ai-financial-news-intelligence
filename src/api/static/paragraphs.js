@@ -10,8 +10,9 @@ let savedArticleId = null;
 let selectedHistory = null;
 let historyOffset = 0;
 let historyLoading = false;
-const labels = { supported: "相符", missing_conditions: "部分相符", contradicted: "不相符", insufficient: "證據不足" };
+const labels = { misleading: "可能誤導", supported: "相符", missing_conditions: "部分相符", contradicted: "不相符", insufficient: "證據不足" };
 const meanings = {
+  misleading: "標題有重要歧義，正文只支持其中一種合理讀法，可能造成誤解。",
   supported: "正文支持標題的主要說法。",
   missing_conditions: "標題省略了正文中的重要條件或限制。",
   contradicted: "標題的說法與正文存在衝突。",
@@ -150,10 +151,10 @@ function showAnalysis(data) {
   const reason = element("p", data.summary); reason.className = "verdict-reason";
   target.append(eyebrow, heading, meaning, title, element("h3", "判斷理由"), reason);
   const modern = data.claims.every(claim => claim.headline_meaning && claim.body_meaning);
-  if (!modern) {
-    const notice = element("p", "這是舊版分析，尚未產生三欄對照。可重新分析產生新版結果；會使用 API 額度，原紀錄仍會保留。");
+  if (!modern || data.prompt_version !== "headline-comparison-v3-ambiguity") {
+    const notice = element("p", "這是舊版分析，尚未使用新版標題歧義規則。可重新分析；會使用 API 額度，原紀錄仍會保留。");
     notice.className = "legacy-notice"; target.append(notice);
-    const upgrade = element("button", "重新分析，產生主張對照"); upgrade.type = "button";
+    const upgrade = element("button", "重新分析，檢查標題歧義"); upgrade.type = "button";
     upgrade.addEventListener("click", () => { if (!busy) $("analysis-form").requestSubmit(); });
     target.append(upgrade);
   }

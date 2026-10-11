@@ -1,8 +1,10 @@
-.venv
-venv
-__pycache__
-*.pyc
-.git
-.gitignore
-.DS_Store
-.env
+# Only application code and its dependency manifest enter the build context.
+**
+!Dockerfile
+!requirements.txt
+!src/
+!src/**
+src/**/__pycache__/
+src/**/*.pyc
+src/**/.env*
+src/**/*.db
